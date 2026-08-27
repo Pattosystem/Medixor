@@ -1,0 +1,1140 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Medixor 営業PDCA</title>
+<style>
+:root{
+  --paper:#FFF7F0; --surface:#FFFFFF;
+  --ink:#241C33; --ink2:#6B6280; --ink3:#8A81A0;
+  --line:#F3E6DA; --line2:#FBF2EA;
+
+  --pri:#3DDC97;  --pri-d:#2FD196; --pri-s:#DBF7EC; --pri-t:#0B7A5A; --pri-ink:#0B3D2E;
+  --brand:#FF6B35; --brand-s:#FFEADF; --brand-t:#C2410C;
+  --sun:#FFD43B;  --sun-s:#FFF3D6; --sun-t:#8A6100;
+  --hot:#FF3D71;  --hot-s:#FFE4EC; --hot-t:#C2255C;
+  --sky:#4C7DFF;  --sky-s:#E4EBFF; --sky-t:#3B5BDB;
+  --grape:#8B5CF6;--grape-s:#EFE7FF; --grape-t:#6D3FD1;
+  --tan:#FF8A50;  --tan-s:#FFF0DC; --tan-t:#B35309;
+  --stop:#C2255C; --gold:#8A6100;
+
+  --jp:"Hiragino Kaku Gothic ProN","Hiragino Sans","Yu Gothic Medium","Yu Gothic","Noto Sans JP",system-ui,sans-serif;
+  --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,"Roboto Mono","Courier New",monospace;
+  --r:14px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--paper);color:var(--ink);font-family:var(--jp);font-size:14px;line-height:1.7;-webkit-font-smoothing:antialiased}
+body{padding-bottom:60px}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer;background:none;border:none}
+a{color:var(--pri)}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.wrap{max-width:1160px;margin:0 auto;padding:0 20px}
+
+/* ── top bar ───────────────────────────── */
+.top{position:sticky;top:0;z-index:40;background:rgba(245,247,245,.93);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+.top-in{display:flex;align-items:center;gap:22px;padding:12px 20px;max-width:1160px;margin:0 auto;flex-wrap:wrap}
+.brand{display:flex;align-items:baseline;gap:9px;flex-shrink:0}
+.brand b{font-size:16px;letter-spacing:.02em;font-weight:800}
+.brand span{font-family:var(--mono);font-size:10px;color:var(--ink3);letter-spacing:.14em;text-transform:uppercase}
+.rail{display:flex;gap:2px;flex:1;min-width:200px;align-items:center}
+.rail i{height:6px;flex:1;border-radius:20px;background:var(--line);position:relative}
+.rail i.w1{background:var(--pri)}.rail i.w2{background:var(--sky)}.rail i.w3{background:var(--grape)}
+.rail i.past{opacity:.42}
+.rail i.now{height:12px;background:var(--brand);box-shadow:0 0 0 3px var(--brand-s)}
+.railcap{font-family:var(--mono);font-size:10px;color:var(--ink3);letter-spacing:.08em;white-space:nowrap}
+.ring{display:flex;align-items:center;gap:9px;flex-shrink:0}
+.ring svg{display:block}
+.ring .rt{font-family:var(--mono);font-size:11px;color:var(--ink2);line-height:1.35;white-space:nowrap}
+.ring .rt b{font-size:15px;color:var(--ink);font-weight:700}
+
+.tabs{display:flex;gap:0;border-top:1px solid var(--line2);background:var(--surface)}
+.tabs-in{display:flex;max-width:1160px;margin:0 auto;padding:0 12px;width:100%;overflow-x:auto;scrollbar-width:none}
+.tabs-in::-webkit-scrollbar{display:none}
+.tab{padding:11px 15px;font-size:13px;color:var(--ink2);border-bottom:2px solid transparent;white-space:nowrap;font-weight:600;display:flex;align-items:center;gap:7px}
+.tab:hover{color:var(--ink)}
+.tab.on{color:var(--brand-t);border-bottom-color:var(--brand)}
+.tab em{font-family:var(--mono);font-style:normal;font-size:10px;background:var(--line2);padding:1px 6px;border-radius:20px;color:var(--ink2)}
+.tab.on em{background:var(--brand-s);color:var(--brand-t)}
+.tab em.hot{background:var(--hot);color:#fff}
+
+main{padding:26px 0 40px}
+.view{display:none}.view.on{display:block}
+
+/* ── generic bits ──────────────────────── */
+.eyebrow{font-family:var(--mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--brand-t);font-weight:700;margin-bottom:9px}
+h2.sec{font-size:19px;font-weight:800;letter-spacing:.01em;margin-bottom:4px}
+.sub{color:var(--ink2);font-size:13px;margin-bottom:18px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r)}
+.pad{padding:18px 20px}
+.row{display:flex;gap:14px;flex-wrap:wrap}
+.muted{color:var(--ink2)}
+.tiny{font-size:12px}
+hr.d{border:0;border-top:1px solid var(--line2);margin:16px 0}
+
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:8px 14px;font-size:13px;font-weight:700;color:var(--ink);transition:.12s}
+.btn:hover{border-color:var(--brand)}
+.btn.p{background:var(--pri);border-color:var(--pri);color:var(--pri-ink);box-shadow:0 2px 0 var(--pri-t)}
+.btn.p:hover{background:var(--pri-d)}
+.btn.p:active{transform:translateY(1px);box-shadow:0 1px 0 var(--pri-t)}
+.btn.h{background:var(--sun);border-color:var(--sun);color:var(--ink);box-shadow:0 2px 0 var(--sun-t)}
+.btn.h:hover{filter:brightness(1.04)}
+.btn.h:active{transform:translateY(1px);box-shadow:0 1px 0 var(--sun-t)}
+.btn.danger{color:var(--hot-t);border-color:var(--hot-s)}
+.btn.danger:hover{background:var(--hot-s);border-color:var(--hot)}
+.btn.s{padding:5px 10px;font-size:12px;font-weight:600}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+
+.chip{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;background:var(--line2);color:var(--ink2);white-space:nowrap}
+.chip.g{background:var(--pri-s);color:var(--pri-t)}
+.chip.h{background:var(--tan-s);color:var(--tan-t)}
+.chip.r{background:var(--hot-s);color:var(--hot-t)}
+.chip.y{background:var(--sun-s);color:var(--sun-t)}
+.chip.c1{background:var(--pri-s);color:var(--pri-t)}
+.chip.c2{background:var(--grape-s);color:var(--grape-t)}
+.chip.c3{background:var(--sky-s);color:var(--sky-t)}
+.chip.c4{background:var(--tan-s);color:var(--tan-t)}
+.chip.c5{background:var(--brand-s);color:var(--brand-t)}
+.chip.c6{background:var(--line2);color:var(--ink2)}
+.chip.c7{background:var(--sun-s);color:var(--sun-t)}
+
+/* ── focus card ────────────────────────── */
+.focus{border:1px solid var(--line);border-radius:14px;background:var(--surface);overflow:hidden;box-shadow:0 1px 2px rgba(20,27,24,.04),0 8px 24px -18px rgba(20,27,24,.3)}
+.focus.hot{border-color:var(--sun);box-shadow:0 0 0 3px var(--sun-s)}
+.fh{padding:16px 22px;border-bottom:1px solid var(--line2);display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap}
+.fh .act{font-size:12px;letter-spacing:.02em;color:var(--pri-ink);background:var(--pri);padding:5px 13px;border-radius:20px;font-weight:800}
+.fh .act.hot{background:var(--sun);color:var(--ink)}
+.fh .act.late{background:var(--hot-s);color:var(--hot-t)}
+.fname{font-size:22px;font-weight:800;letter-spacing:.005em;line-height:1.35}
+.fmeta{font-size:12px;color:var(--ink2);margin-top:3px}
+.fb{padding:18px 22px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+@media(max-width:820px){.grid2{grid-template-columns:1fr}}
+.kv{display:grid;grid-template-columns:74px 1fr;gap:4px 12px;font-size:13px}
+.kv dt{font-family:var(--mono);font-size:10.5px;color:var(--ink3);letter-spacing:.06em;padding-top:4px}
+.kv dd{color:var(--ink)}
+.quote{background:var(--paper);border-left:3px solid var(--brand);border-radius:0 10px 10px 0;padding:11px 14px;font-size:13px;line-height:1.75}
+.quote b{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.1em;color:var(--ink3);font-weight:600;margin-bottom:2px}
+.quote + .quote{margin-top:8px}
+
+.mailbox{border:1px solid var(--line);border-radius:9px;overflow:hidden}
+.mailbar{display:flex;align-items:center;gap:8px;padding:8px 11px;background:var(--paper);border-bottom:1px solid var(--line);flex-wrap:wrap}
+.mailbar .lbl{font-family:var(--mono);font-size:10px;letter-spacing:.1em;color:var(--ink3)}
+.subj{width:100%;border:0;border-bottom:1px solid var(--line2);padding:10px 13px;font-size:13.5px;font-weight:700;background:var(--surface);outline:none}
+.subj:focus{background:#FFFDF9}
+.bodyta{width:100%;border:0;padding:13px;font-size:13px;line-height:1.85;resize:vertical;min-height:340px;background:var(--surface);outline:none;font-family:var(--jp)}
+.bodyta:focus{background:#FFFDF9}
+.blanks{font-size:11.5px;color:var(--hot-t);font-weight:700;font-family:var(--mono);border:0;background:none;padding:0}
+.blanks:hover{text-decoration:underline}
+.blanks.ok{color:var(--pri-t)}
+
+.memota{width:100%;border:1px solid var(--line);border-radius:8px;padding:11px 13px;min-height:84px;resize:vertical;font-size:13px;line-height:1.75;outline:none;background:var(--surface);font-family:var(--jp)}
+.memota:focus{border-color:var(--brand)}
+.acts{display:flex;gap:8px;flex-wrap:wrap;padding:14px 22px;border-top:1px solid var(--line2);background:var(--paper)}
+
+.qlist{margin-top:22px}
+.qrow{display:flex;align-items:center;gap:12px;padding:9px 14px;border-bottom:1px solid var(--line2);cursor:pointer;font-size:13px}
+.qrow:hover{background:var(--surface)}
+.qrow .qd{font-family:var(--mono);font-size:11px;width:78px;flex-shrink:0;color:var(--ink3)}
+.qrow .qd.late{color:var(--hot-t);font-weight:700}
+.qrow .qn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+.qrow .qa{font-size:11.5px;color:var(--ink2);flex-shrink:0}
+
+/* ── stats ─────────────────────────────── */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.stats.c5{grid-template-columns:repeat(5,1fr)}
+@media(max-width:900px){.stats,.stats.c5{grid-template-columns:repeat(2,1fr)}}
+.stat{background:var(--surface);padding:15px 17px}
+.stat .l{font-family:var(--mono);font-size:10px;letter-spacing:.1em;color:var(--brand-t);text-transform:uppercase;font-weight:700}
+.stat .n{font-family:var(--mono);font-size:27px;font-weight:700;letter-spacing:-.02em;line-height:1.25;font-variant-numeric:tabular-nums}
+.stat .s{font-size:11.5px;color:var(--ink2)}
+.stat .n.hot{color:var(--hot-t)}
+.stat .n.g{color:var(--pri-t)}
+
+table.t{width:100%;border-collapse:collapse;font-size:13px;line-height:1.55}
+table.t th{font-family:var(--mono);font-size:10px;letter-spacing:.08em;color:var(--ink3);text-align:left;font-weight:600;padding:8px 10px;border-bottom:1px solid var(--line);text-transform:uppercase;white-space:nowrap}
+table.t td{padding:7px 10px;border-bottom:1px solid var(--line2);vertical-align:middle}
+table.t tbody tr:nth-child(even){background:#FFFCF8}
+table.t tbody tr:hover{background:var(--brand-s)}
+table.t td.n{font-family:var(--mono);font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+.bar{height:9px;border-radius:20px;background:var(--line2);overflow:hidden;min-width:70px}
+.bar i{display:block;height:100%;background:linear-gradient(90deg,var(--pri),var(--sky));border-radius:20px}
+.bar i.low{background:#DCD6E4}
+
+/* ── list ──────────────────────────────── */
+.filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+.filters select,.filters input{border:1px solid var(--line);border-radius:7px;padding:6px 10px;font-size:12.5px;background:var(--surface);outline:none}
+.filters input{min-width:190px}
+.filters select:focus,.filters input:focus{border-color:var(--brand)}
+.lrow{cursor:pointer}
+.pill{font-family:var(--mono);font-size:10px;padding:2px 8px;border-radius:20px;background:var(--line2);color:var(--ink2);white-space:nowrap;font-weight:700}
+
+/* ── drawer ────────────────────────────── */
+.scrim{position:fixed;inset:0;background:rgba(20,27,24,.35);z-index:60;display:none}
+.scrim.on{display:block}
+.drawer{position:fixed;top:0;right:0;bottom:0;width:min(740px,100%);background:var(--paper);z-index:61;transform:translateX(100%);transition:transform .22s cubic-bezier(.4,0,.2,1);overflow-y:auto;display:none}
+.drawer.on{display:block;transform:translateX(0)}
+.dclose{position:sticky;top:0;background:var(--paper);padding:12px 20px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;z-index:2}
+.dbody{padding:18px 20px 60px}
+#drawer .grid2{grid-template-columns:1fr}
+#drawer .focus{box-shadow:none}
+
+/* ── review ────────────────────────────── */
+.pdca{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:760px){.pdca{grid-template-columns:1fr}}
+.pdca .box{border:1px solid var(--line);border-radius:9px;background:var(--surface);overflow:hidden}
+.pdca .box h4{font-size:12.5px;padding:9px 13px;background:var(--paper);border-bottom:1px solid var(--line);font-weight:700;display:flex;gap:8px;align-items:baseline}
+.pdca .box h4 i{font-family:var(--mono);font-style:normal;font-size:11px;color:var(--brand);letter-spacing:.14em;font-weight:700}
+.pdca textarea{width:100%;border:0;padding:12px 13px;min-height:110px;resize:vertical;font-size:13px;line-height:1.75;outline:none;background:var(--surface);font-family:var(--jp)}
+
+.acc{border:1px solid var(--line);border-radius:9px;background:var(--surface);margin-bottom:10px;overflow:hidden}
+.acc>summary{padding:12px 16px;font-weight:700;font-size:13.5px;cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center;gap:12px}
+.acc>summary::-webkit-details-marker{display:none}
+.acc>summary::after{content:"＋";font-family:var(--mono);color:var(--brand);font-size:15px;font-weight:700}
+.acc[open]>summary::after{content:"−"}
+.acc[open]>summary{border-bottom:1px solid var(--line2)}
+.accb{padding:14px 16px}
+
+.note{border-left:3px solid var(--hot);background:var(--hot-s);padding:11px 14px;border-radius:0 10px 10px 0;font-size:12.5px;line-height:1.7}
+.toast{position:fixed;left:50%;bottom:26px;transform:translate(-50%,20px);background:var(--ink);color:#fff;padding:9px 18px;border-radius:8px;font-size:13px;font-weight:600;opacity:0;transition:.2s;z-index:99;pointer-events:none}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+.empty{text-align:center;padding:56px 20px;color:var(--ink2)}
+.empty .big{font-size:40px;font-family:var(--mono);color:var(--pri-t);font-weight:700}
+@media(max-width:640px){
+  .top-in{padding:10px 16px;gap:10px}
+  .top-in>div:nth-child(2){order:3;flex-basis:100%;min-width:0}
+  .ring{margin-left:auto}
+  .wrap{padding:0 14px}
+  .fh,.fb,.acts{padding-left:16px;padding-right:16px}
+  .fname{font-size:19px}
+  .stat{padding:12px 14px}.stat .n{font-size:23px}
+  .acts .btn{flex:1 1 auto}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+#gate{position:fixed;inset:0;z-index:200;background:var(--paper);display:flex;align-items:center;justify-content:center;padding:24px}
+.gbox{width:min(360px,100%);background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:30px 26px;box-shadow:0 20px 50px -30px rgba(20,27,24,.4)}
+.gbox input{width:100%;border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-bottom:9px;font-size:14px;outline:none;background:var(--surface)}
+.gbox input:focus{border-color:var(--brand)}
+</style>
+</head>
+<body>
+
+<div id="gate">
+  <form class="gbox" onsubmit="doLogin();return false">
+    <div class="brand" style="justify-content:center;margin-bottom:4px"><b>Medixor</b><span>outbound&nbsp;pdca</span></div>
+    <p class="tiny muted" style="text-align:center;margin-bottom:18px">社内向けです。招待されたアカウントでログインしてください。</p>
+    <input id="gEmail" type="email" autocomplete="username" placeholder="メールアドレス">
+    <input id="gPw" type="password" autocomplete="current-password" placeholder="パスワード">
+    <button id="gBtn" class="btn p" type="submit" style="width:100%;margin-top:10px">ログイン</button>
+    <div id="gateMsg" class="tiny" style="margin-top:12px;min-height:20px;color:var(--hot);text-align:center">読み込んでいます…</div>
+  </form>
+</div>
+
+<div id="app" style="display:none">
+<header class="top">
+  <div class="top-in">
+    <div class="brand"><b>Medixor</b><span>outbound&nbsp;pdca</span></div>
+    <div style="flex:1;min-width:220px">
+      <div class="rail" id="rail"></div>
+      <div class="railcap" id="railcap" style="margin-top:5px"></div>
+    </div>
+    <div class="ring" style="text-align:right">
+      <div class="rt" style="text-align:right"><b id="who" style="font-size:12px;font-weight:700"></b><br><span id="saved" style="font-size:10px;color:var(--ink3)"></span></div>
+    </div>
+    <div class="ring">
+      <svg width="42" height="42" viewBox="0 0 42 42">
+        <circle cx="21" cy="21" r="17" fill="none" stroke="#F3E6DA" stroke-width="5"/>
+        <circle id="ringArc" cx="21" cy="21" r="17" fill="none" stroke="#2FD196" stroke-width="5"
+                stroke-linecap="round" stroke-dasharray="0 107" transform="rotate(-90 21 21)"/>
+      </svg>
+      <div class="rt">本日の送信<br><b id="capNow">0</b> / <span id="capMax">25</span> 通</div>
+    </div>
+  </div>
+  <nav class="tabs"><div class="tabs-in" id="tabs"></div></nav>
+</header>
+
+<main class="wrap">
+  <section class="view on" id="v-today"></section>
+  <section class="view" id="v-list"></section>
+  <section class="view" id="v-stats"></section>
+  <section class="view" id="v-review"></section>
+  <section class="view" id="v-plan"></section>
+</main>
+
+</div>
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer">
+  <div class="dclose"><b id="dTitle">詳細</b><button class="btn s" onclick="closeDrawer()">閉じる ✕</button></div>
+  <div class="dbody" id="dBody"></div>
+</aside>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ═══ Supabase の接続先。ここだけ書き換えてください ═══ */
+const CFG = {
+  url: 'https://XXXXXXXXXXXX.supabase.co',   // Project URL
+  key: 'XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'  // anon public key
+};
+/* ══════════════════════════════════════════════════════ */
+
+const DATA = {"tpls":{"A":{"seg":"① 紹介経由","subject":"ご紹介いただきありがとうございます（Medixor／リアス株式会社 坂口）","body":"【　】先生\n\nはじめてご連絡いたします。Medixorを運営しております、リアス株式会社の坂口と申します。\n\nご登録の際に「【紹介／医師から聞いて 等の記載】」とご記入いただいており、まずそのお礼をお伝えしたくメールいたしました。ご紹介くださった方にも感謝しております。\n\nご登録から時間が経ってしまい、こちらから一度もご連絡できておりませんでした。失礼いたしました。\n\n★カテゴリ差込★\n\n【関西・関東】もしよろしければ、一度ご挨拶に伺えないでしょうか。診療の合間の15分でも構いません。\n【その他地域】もしよろしければ、一度15分ほどオンラインでお話しできればと思います。画面共有で価格表をお見せしながらご説明します。\n\n【来週の火曜・木曜午後】でしたら空いております。ご都合いかがでしょうか。\n\n────────────\nリアス株式会社\n代表取締役 坂口 孝太","why":"紹介経由は関係が壊れにくい唯一の層。1通目から面談を打診してよい。断られても失うものがない。全国254件中でも最も歩留まりが高い。"},"E":{"seg":"② 品質・信頼重視","subject":"正規品の流通経路についてご説明させてください（Medixor 坂口）","body":"【　】先生\n\nMedixorを運営しております、リアス株式会社の坂口と申します。\n\nご登録時に「【正規品／コールドチェーン／密封 等のご記載】」とご記入いただいておりました。この点は当社がいちばん力を入れている部分ですので、直接ご説明したくご連絡しました。\n\n【仕入経路・輸送温度管理・外箱の状態について、事実を3〜4行で。誇張しない】\n\nご懸念の点があれば、遠慮なくご質問ください。書面でお答えできることはすべてお出しします。\n\n★カテゴリ差込★\n\n【面談打診：訪問またはオンライン】\n\n────────────\nリアス株式会社\n代表取締役 坂口 孝太","why":"この層は価格勝負にならないため、単価と継続率がいちばん高くなる。他社への不信がすでに顕在化しているので、事実を丁寧に出すだけで乗り換えが起きる。全セグメント中もっとも投資対効果が高い。安売りの話を持ち出さないこと。"},"C":{"seg":"③ 乗り換え・比較","subject":"仕入先の比較検討をされていた件（Medixor 坂口）","body":"【　】先生\n\nMedixorを運営しております、リアス株式会社の坂口と申します。\n\nご登録時に「【比較したい／今の業者が高い／一括にまとめたい 等】」とご記入いただいておりました。\n\n比較検討の段階でしたら、いちばん確実なのは同じ条件で並べて見ることだと思います。現在お使いの仕入先のお見積りがございましたら、同じ製品・同じロットで当社の条件をお出しします。金額が合わなければ、それでけっこうです。\n\n複数社に分けて発注されている場合は、まとめた場合の条件も併せてお出しします。\n\n★カテゴリ差込★\n\n【面談打診：訪問またはオンライン】\n\n────────────\nリアス株式会社\n代表取締役 坂口 孝太","why":"「相見積もりを取ってください」と自分から言うのがいちばん効く。価格勝負の層なので、勝てないなら早く分かったほうが双方の時間を無駄にしない。「複数社の集約」は価格以外の価値提案になるので必ず入れる。"},"F":{"seg":"④ 開業・新規参入","subject":"美容メニューの立ち上げについて（Medixor 坂口）","body":"【　】先生\n\nMedixorを運営しております、リアス株式会社の坂口と申します。\n\nご登録時に「【開業準備／メニューを増やしたい 等】」とご記入いただいておりました。\n\n立ち上げの段階では、何をどの順で揃えるかがいちばん迷われるところかと思います。当社は同じ段階のクリニック様とのお取引が多く、初期に必要な製剤・消耗品の構成をご提案できます。小ロットからの対応も可能です。\n\n★カテゴリ差込★\n\n導入時の手続きや保管方法についても、ご不明な点があればお答えします。\n\n【面談打診：訪問またはオンライン】\n\n────────────\nリアス株式会社\n代表取締役 坂口 孝太","why":"今の発注額は小さいが、立ち上げ時に入った業者がそのまま定番になるためLTVが最大。価格ではなく「構成の提案」で入る。ここで安売りすると、その価格が基準になって後から上げられなくなる点に注意。"},"B":{"seg":"⑤ 製品名指し（一般）","subject":"【製品名】について（Medixor 坂口）","body":"【　】先生\n\nMedixorを運営しております、リアス株式会社の坂口と申します。\n\nご登録時に「【本人が記入した製品名・検索キーワードをそのまま引用】」とご記入いただいておりました。この点について直接お答えできればと思い、ご連絡しました。\n\n★カテゴリ差込★\n\nご登録から日が経っておりますので、すでに他社様でお決まりでしたら、このメールは無視してください。まだご検討中でしたら、「【必要数量】」だけご返信いただければ、折り返しお見積りをお送りします。\n\n────────────\nリアス株式会社\n代表取締役 坂口 孝太","why":"母数が最大のセグメント。件名に製品名を入れる（開封率が変わる）。返信のハードルを「数量だけ」まで下げる。「お決まりなら無視してください」という逃げ道を用意すると、かえって返信率が上がる。"},"B-歯科":{"seg":"⑤ 製品名指し（歯科）","subject":"【製品名】の少数バイアルについて（Medixor 坂口）","body":"【　】先生\n\nMedixorを運営しております、リアス株式会社の坂口と申します。\n\nご登録時に「【本人の記入内容をそのまま引用】」とご記入いただいておりました。\n\n歯科の先生からは同様のご相談を複数いただいております。ブラキシズムや口腔顔面痛への応用でお使いになるケースでは、まず小ロットで導入されることがほとんどです。少数バイアルからのご対応も可能です。\n\n★カテゴリ差込★\n\n導入時の手続きや保管についてご不明な点があれば、あわせてお答えします。\n\n────────────\nリアス株式会社\n代表取締役 坂口 孝太","why":"歯科は全体の1割超。価格より「治療用途で使えるか」「導入手続きが面倒でないか」が壁になる。そこを先に潰すと差がつく。美容系の代理店が手薄な領域なので、全国で狙う価値がいちばん大きい。"},"F-歯科":{"seg":"④ 開業・新規参入（歯科）","subject":"歯科での自費メニュー導入について（Medixor 坂口）","body":"【　】先生\n\nMedixorを運営しております、リアス株式会社の坂口と申します。\n\nご登録時に「【本人の記入内容】」とご記入いただいておりました。\n\n歯科での自費メニュー立ち上げについては、製剤の選定より先に、適応・手技・保管・患者説明のところで手が止まることが多いようです。当社は歯科の先生とのお取引もあり、その部分の情報もあわせてお出しできます。\n\n★カテゴリ差込★\n\n【面談打診：訪問またはオンライン】\n\n────────────\nリアス株式会社\n代表取締役 坂口 孝太","why":"歯科×開業・新規参入の掛け合わせ。製品を売るのではなく、メニュー立ち上げの伴走者として入る。競合が最も少ない位置。"},"D":{"seg":"⑥ 無回答","subject":"ご登録のお礼と、情報提供について","body":"【　】先生\n\nMedixorを運営しております、リアス株式会社の坂口と申します。\n\nご登録いただいたまま、こちらから一度もご連絡できておりませんでした。失礼いたしました。\n\nご興味のあるカテゴリ（注入剤／スキンブースター／ピーリング／スレッド／針・消耗品 など）を一言いただければ、該当する製品のお見積りをお出しします。製品名がお決まりでしたら、数量とあわせてお知らせください。\n\n不要でしたらご返信は不要です。\n\n────────────\nリアス株式会社\n代表取締役 坂口 孝太","why":"情報がない層なので売らない。カテゴリを1つ答えてもらうことがゴール。返ってきた時点で⑤に移し、以後はカテゴリ別対応に乗せる。返信率は低くて当然で、母集団を仕分けるための施策と割り切る。"},"2通目":{"seg":"全セグメント共通（Day 5〜7）","subject":"先日のご連絡の件（Medixor 坂口）","body":"【　】先生\n\n先日ご連絡いたしました、リアス株式会社の坂口です。\n\nお忙しいところ恐れ入ります。メールでの説明より、実物や価格表をご覧いただいたほうが早いかと思いご連絡しました。\n\n【関西・関東・中部】【◯月◯日】に【地域名】方面を回っておりますので、その際に【製品名／サンプル／比較表】をお持ちすることもできます。5分でも、受付にお預けするだけでも構いません。\n【その他地域】15分ほどオンラインでお時間をいただければ、価格表を画面共有しながらご説明します。\n\nご不要でしたら、その旨だけお知らせいただければ以後のご案内は控えます。\n\n────────────\nリアス株式会社\n代表取締役 坂口 孝太","why":"ここで初めて面談を打診する。訪問可能地域は「その方面を回るついで」、それ以外は「Zoom15分」に自動で振り分ける。口実は価格表より現物のほうが強い。"},"3通目":{"seg":"全セグメント共通（Day 14）","subject":"最後のご案内です（Medixor 坂口）","body":"【　】先生\n\nたびたび失礼いたします。リアス株式会社の坂口です。\n\n本メールで最後のご案内とさせていただきます。\n\n【いちばん強い条件・オファーを1つだけ、具体的な数字で】\n\nもし今後ご案内が不要でしたら、その旨お知らせください。以後お送りいたしません。\n必要になったタイミングでいつでもご連絡いただければ、すぐ対応いたします。\n\n────────────\nリアス株式会社\n代表取締役 坂口 孝太","why":"締めのメール。ここで初めていちばん強い条件を出す。1通目で出すと値引きが前提になってしまうため、最後まで取っておく。"}},"cats":{"ボツリヌス系":{"block":"ボツラックス・イノトックス・コアトックス・ナボタを取り扱っております。製剤ごとに単位数と最小ロットが異なりますので、ご希望の製剤名と本数をお知らせいただければ、その場でお見積りをお出しします。少数バイアルからのご対応も可能です。","hook":"製剤ごとの単価比較表を持参／画面共有。「どれを使うべきか」の相談に乗る形にする"},"スキンブースター・肌育":{"block":"リジュラン、プルリアル、ブナジュ、リトゥオなど、肌育系の製剤を幅広く取り扱っております。外箱の状態や密封のまま納品できる流通経路を確保しております。ご希望の製剤をお知らせいただければ、価格と納期をお出しします。","hook":"正規品の納品状態を実物で見せる。この層は他社の納品状態に不信を持っていることが多い"},"脂肪溶解":{"block":"FatX Core をはじめとする脂肪溶解製剤を取り扱っております。ご希望の数量をお知らせいただければ、価格と納期をお出しします。実際の使用感やダウンタイムについての情報も、他院様の事例としてお伝えできます。","hook":"施術事例・ダウンタイム情報が最大の関心事。資料を持参する口実になる"},"ピーリング":{"block":"PRX-T33、マッサージピール、ミラノリピールなど、ピーリング製剤を取り扱っております。ご希望の製剤と数量をお知らせいただければ、価格と納期をお出しします。","hook":"複数製剤の使い分けの相談。カタログ持参"},"フィラー・HA":{"block":"ニューラミス、オリディア、プロファイロなどのフィラー・ヒアルロン酸製剤を取り扱っております。ご希望の製剤をお知らせいただければ、価格と納期をお出しします。","hook":"ラインナップ表を持参。他社との併用状況を聞き出す"},"針・消耗品":{"block":"34G2mm針、マイクロカニューレ等の消耗品を取り扱っております。実物のサンプルをお送りすることもできますので、ご希望でしたらお知らせください。","hook":"現物サンプルが最強の口実。「お持ちします」「受付にお預けするだけでも」が自然に言える"},"注射・点滴・麻酔":{"block":"グルタチオン、ヒアルロニダーゼ、リドカイン等を取り扱っております。ご希望の製剤と数量をお知らせいただければ、価格と納期をお出しします。","hook":"点滴メニューの構成相談。定期購入につながりやすい"},"スレッド・糸":{"block":"各種スレッド・糸リフト製剤を取り扱っております。ご希望の種類と本数をお知らせいただければ、価格と納期をお出しします。","hook":"実物と使用感の説明。手技とセットで相談されることが多い"},"機器・デバイス":{"block":"機器につきましては個別のお見積りとなります。ご検討中の機種と導入時期をお知らせいただければ、条件をまとめてお出しします。","hook":"単価が大きく、そもそも商談化しやすい。ここは最初から訪問／オンライン商談を前提に動く"},"未特定":{"block":"ご希望の製品名と数量をお知らせいただければ、お見積りと納期をそのままお返しします。製品名がお決まりでない場合は、ご検討中のカテゴリ（注入剤／スキンブースター／ピーリング／スレッド／針・消耗品 など）を一言いただければ、該当するものをご案内します。","hook":"まずカテゴリを特定することがゴール。返信が来た時点でカテゴリ別の対応に乗せ替える"}},"blocks":{"関東":{"n":"126","how":"メール → 電話 → 出張時にまとめて訪問","meet":"月1回の東京出張を固定。1日8〜10件、2〜3日で25〜30件回れる。アポは出張日の2週間前から逆算して打診","move":"最大の山。ここを出張化できないと全国営業は回らない。日程を先に決めてからメールを送る","pri":"最優先"},"関西":{"n":"48","how":"メール → 電話 → 直接訪問","meet":"自社が大阪のため随時訪問可能。「その方面を回るので」が自然に使える唯一のブロック","move":"日帰り。大阪版の設計をそのまま流用できる","pri":"最優先"},"中部":{"n":"32","how":"メール → 電話 → 名古屋出張","meet":"名古屋・岐阜・三重・静岡。名古屋起点で日帰り可能。2か月に1回の頻度で組む","move":"新幹線日帰り。1日6〜8件","pri":"高"},"九州沖縄":{"n":"23","how":"メール → 電話 → 福岡出張","meet":"福岡13件が中心。福岡を1日、他県はオンライン。沖縄は完全にオンライン","move":"四半期に1回。福岡1泊で組む","pri":"中"},"東北":{"n":"10","how":"メール → 電話 → オンライン商談","meet":"宮城5件が中心。仙台にまとまれば日帰り出張の候補","move":"件数が集まるまではオンライン中心","pri":"中"},"中国":{"n":"8","how":"メール → 電話 → オンライン商談","meet":"広島が中心。単独訪問は効率が悪い","move":"オンライン中心。九州出張と抱き合わせも可","pri":"低"},"四国":{"n":"4","how":"メール → 電話 → オンライン商談","meet":"件数が少なく訪問は非現実的","move":"完全オンライン","pri":"低"},"北海道":{"n":"3","how":"メール → 電話 → オンライン商談","meet":"件数が少なく訪問は非現実的","move":"完全オンライン","pri":"低"}},"notes":[{"t":"薬機法（最重要）","body":"未承認医薬品については、広告に該当する形での情報発信が制限されます。会員登録済みで、かつご本人が製品名を記入して問い合わせている相手への回答という体裁は保ちやすい一方、こちらから製品名を出して価格を訴求する形はグレーに寄ります。全国254件への一斉送信は、大阪30件のときより「広告」と見られるリスクが構造的に上がります。","do":"テンプレを「先生が書かれた内容にお答えする」構成にしているのはそのため。送信前に顧問弁護士・薬事の専門家に文面とリスト運用の両方を通してください。本ファイルの内容は法的助言ではありません。"},{"t":"購入主体の確認（新規論点）","body":"会員のうち十数件が株式会社・合同会社・一般社団法人・個人事業主です。医師個人輸入の代行という性質上、購入主体が医師・医療機関であることが前提になります。動物病院の登録も1件あります。","do":"リストの「業態」列で該当を抽出できます。第1波に入れる前に、購入主体を必ず確認してください。確認できないまま送るのがいちばん危険です。"},{"t":"送信ドメインの評価（新規論点）","body":"254件への短期間の大量送信は、迷惑メール判定を受けやすくなります。一度ドメイン評価が下がると、既存顧客への業務メールまで届かなくなります。","do":"1日20〜30通を上限に。SPF・DKIM・DMARCの設定を送信前に確認してください。配信停止の意思表示は必ず受け付け、記録に残す。"},{"t":"重複会員","body":"同一施設名または同一電話番号の登録が複数あります（リストの「重複」列）。担当者違いで別々に登録されているケースです。","do":"同じ内容を両方に送ると、院内で「別々に営業が来た」という印象になります。送信前に「重複」列でフィルタし、窓口を一本化してください。"},{"t":"分類の精度","body":"セグメント・製品カテゴリ・業態は、登録時の記述からキーワードで機械的に判定しています。記述が短い会員や、複数カテゴリにまたがる会員は取りこぼしがあります。","do":"第1波（優先度1）は件数が限られるので、送信前に目視で確認してください。分類を直せば集計サマリーの数字も自動で更新されます。"},{"t":"★ 別対応の1件","body":"既に別の関係がある会員が1件あります。一斉営業リストに入れると不自然になります。","do":"セグメント「★ 別対応」として分離しています。個別に対応してください。"},{"t":"除外4件","body":"リアス株式会社（自社）、UEGO（自社営業）、JJMEDITEC（グループ）に加え、会員登録欄に他社の営業文が入力されている1件（10176）があります。","do":"送信対象外。灰色行で明示しています。今後の会員数の集計でも母数から除いたほうが数字が正確になります。"},{"t":"配信停止の受け皿","body":"「不要」と言われた相手に再送してしまうのが、この手の施策でいちばん信用を失うパターンです。254件規模では必ず起こります。","do":"リストの「状況」列に「不要連絡」を選択し、次回以降のリストから確実に外す運用を決めておいてください。"}],"segs":{"① 紹介経由":"既に第三者の推薦がある。信頼の下地があり、初回から面談を打診できる唯一の層","② 品質・信頼重視":"正規品・コールドチェーン・密封状態を問題にしている。価格勝負にならず、単価と継続率が最も高くなる層。最優先","③ 乗り換え・比較":"現在の仕入先に不満か、複数社を集約したい。相見積もりの提案が最短ルート","④ 開業・新規参入":"開業準備・メニュー拡大。今の発注額は小さいが、最初に入った業者が定番になるためLTVが最も大きい","⑤ 製品名指し・購入検討":"特定製品を挙げて登録。母数が最大。製品カテゴリ別に一括対応する","⑥ 無回答":"登録理由の記入なし。情報提供型で薄く広く接触し、反応を見る","★ 別対応":"既存の別関係あり。一斉リストから外して個別対応","除外":"自社・グループ・ノイズ。送信対象外"}};   /* 文面・差込文・地域・注意点（個人情報なし） */
+let REC=[], BYID={}, ME=null, lastSync=null, syncing=false;
+
+/* ══ Supabase ═════════════════════════════════ */
+const TOK='medixor:rt';
+function hdr(extra){
+  return Object.assign({apikey:CFG.key,'Content-Type':'application/json',
+    Authorization:'Bearer '+(ME?ME.token:CFG.key)}, extra||{});
+}
+async function api(method,path,body,extra){
+  const r=await fetch(CFG.url+'/rest/v1/'+path,{method,headers:hdr(extra),
+    body:body?JSON.stringify(body):undefined});
+  if(r.status===401){ signOut('セッションが切れました。もう一度ログインしてください。'); throw new Error('401'); }
+  if(!r.ok) throw new Error(await r.text());
+  const t=await r.text(); return t?JSON.parse(t):null;
+}
+const upsert=(tbl,rows)=>api('POST',tbl,rows,{Prefer:'resolution=merge-duplicates,return=minimal'});
+
+async function signIn(email,pw){
+  const r=await fetch(CFG.url+'/auth/v1/token?grant_type=password',
+    {method:'POST',headers:{apikey:CFG.key,'Content-Type':'application/json'},
+     body:JSON.stringify({email,password:pw})});
+  const j=await r.json();
+  if(!j.access_token) throw new Error(j.error_description||j.msg||j.message||'ログインできませんでした');
+  setSession(j); return j;
+}
+async function refresh(){
+  let rt=null; try{ rt=localStorage.getItem(TOK) }catch(e){}
+  if(!rt) return false;
+  const r=await fetch(CFG.url+'/auth/v1/token?grant_type=refresh_token',
+    {method:'POST',headers:{apikey:CFG.key,'Content-Type':'application/json'},
+     body:JSON.stringify({refresh_token:rt})});
+  const j=await r.json();
+  if(!j.access_token){ try{localStorage.removeItem(TOK)}catch(e){}; return false; }
+  setSession(j); return true;
+}
+function setSession(j){
+  const md=j.user&&j.user.user_metadata||{};
+  ME={token:j.access_token,email:(j.user&&j.user.email)||'',
+      name:md.name||((j.user&&j.user.email)||'').split('@')[0]};
+  try{ localStorage.setItem(TOK,j.refresh_token) }catch(e){}
+  clearTimeout(setSession._t);
+  setSession._t=setTimeout(refresh,Math.max(60,(j.expires_in||3600)-120)*1000);
+}
+function signOut(msg){
+  ME=null; try{ localStorage.removeItem(TOK) }catch(e){}
+  document.getElementById('gate').style.display='flex';
+  document.getElementById('app').style.display='none';
+  if(msg) document.getElementById('gateMsg').textContent=msg;
+}
+
+/* 「今日」タブの表示。戻したくなったら true に変えるだけ */
+const SHOW_TODAY = false;
+
+/* ══ dates ════════════════════════════════════ */
+const pad=n=>String(n).padStart(2,'0');
+const iso=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+const TODAY=iso(new Date());
+function addD(s,n){ if(!s)return''; const d=new Date(s+'T00:00:00'); d.setDate(d.getDate()+n); return iso(d); }
+function diffD(a,b){ if(!a||!b)return 0; return Math.round((new Date(b+'T00:00:00')-new Date(a+'T00:00:00'))/864e5); }
+function jp(s){ if(!s)return'—'; const[,m,d]=s.split('-'); return +m+'/'+d; }
+function weekKey(s){
+  const d=new Date(s+'T00:00:00'); const t=new Date(d);
+  t.setDate(t.getDate()+3-((d.getDay()+6)%7));
+  const y=t.getFullYear(); const j=new Date(y,0,4);
+  const w=1+Math.round(((t-j)/864e5-3+((j.getDay()+6)%7))/7);
+  return y+'-W'+pad(w);
+}
+function weekMonday(s){ const d=new Date(s+'T00:00:00'); d.setDate(d.getDate()-((d.getDay()+6)%7)); return iso(d); }
+
+/* ══ state ════════════════════════════════════ */
+const STATUSES=['未着手','1通目送信','2通目送信','3通目送信','返信あり','電話済','面談打診中','面談実施','見積提出','受注','不要連絡','寝かせ','対象外'];
+const CLOSED=['受注','不要連絡','対象外','寝かせ'];
+let S={v:1,start:TODAY,cap:25,company:'',sender:'',title:'',r:{},weeks:{},del:[]};
+let dirty=false;
+
+function st(id){
+  if(!S.r[id]){
+    const rec=BYID[id];
+    const off = (rec.seg==='除外'||rec.seg==='★ 別対応') ? '対象外' : '未着手';
+    S.r[id]={st:off,s1:'',s2:'',s3:'',call:'',last:'',own:'',mode:'',snooze:'',memo:'',log:[],d:{}};
+  }
+  return S.r[id];
+}
+let dirtyRecs=new Set(), dirtyMeta=false;
+function touch(id){
+  if(id){dirtyRecs.add(id)}else{dirtyMeta=true}
+  dirty=true; setSaved('保存中…');
+  clearTimeout(touch._t); touch._t=setTimeout(save,700);
+}
+async function save(){
+  const ids=[...dirtyRecs]; dirtyRecs.clear();
+  const meta=dirtyMeta; dirtyMeta=false; dirty=false;
+  try{
+    if(ids.length) await upsert('medixor_state',
+      ids.map(id=>({id,data:S.r[id],updated_by:ME?ME.name:'',updated_at:new Date().toISOString()})));
+    if(meta) await upsert('medixor_meta',[
+      {k:'settings',data:{start:S.start,cap:S.cap,company:S.company,sender:S.sender,title:S.title},updated_at:new Date().toISOString()},
+      {k:'weeks',data:S.weeks,updated_at:new Date().toISOString()}]);
+    setSaved('保存済み '+new Date().toTimeString().slice(0,5));
+  }catch(e){
+    ids.forEach(i=>dirtyRecs.add(i)); if(meta)dirtyMeta=true; dirty=true;
+    setSaved('保存できていません — 通信を確認してください',1);
+  }
+}
+function setSaved(t,bad){
+  const el=document.getElementById('saved'); if(!el)return;
+  el.textContent=t; el.style.color=bad?'var(--hot)':'var(--ink3)';
+}
+function logIt(id,kind,note){ st(id).log.push({d:TODAY,k:kind,n:note||''}); }
+
+/* ══ engine ═══════════════════════════════════ */
+function waveStart(w){ return addD(S.start, w===1?0 : w===2?21 : w===3?56 : 0); }
+function waveEnd(w){ return addD(S.start, w===1?20 : w===2?55 : 83); }
+function weekNo(){ const n=diffD(S.start,TODAY); return Math.max(1,Math.min(12,Math.floor(n/7)+1)); }
+
+/* 次アクション：どのタイミングで何をするかの唯一の定義 */
+function next(rec){
+  const x=st(rec.id);
+  if(CLOSED.includes(x.st)) return null;
+  if(x.snooze && x.snooze>TODAY) return {act:'保留中',due:x.snooze,kind:'hold',heat:0};
+  switch(x.st){
+    case '未着手':     return {act:'1通目を送る',   due:waveStart(rec.wave), kind:'m1',   heat:1};
+    case '1通目送信':  return {act:'2通目を送る',   due:addD(x.s1,5),        kind:'m2',   heat:1};
+    case '2通目送信':  return {act:'3通目を送る',   due:addD(x.s1,14),       kind:'m3',   heat:1};
+    case '3通目送信':  return {act:'寝かせる',      due:addD(x.s3,7),        kind:'sleep',heat:0};
+    case '返信あり':   return {act:'当日中に電話',  due:x.last||TODAY,       kind:'call', heat:3};
+    case '電話済':     return {act:'面談を打診',    due:addD(x.last,1),      kind:'meet', heat:2};
+    case '面談打診中': return {act:'返事を確認',    due:addD(x.last,3),      kind:'follow',heat:2};
+    case '面談実施':   return {act:'見積を出す',    due:addD(x.last,2),      kind:'quote',heat:2};
+    case '見積提出':   return {act:'クロージング',  due:addD(x.last,5),      kind:'close',heat:2};
+  }
+  return null;
+}
+function queue(){
+  const q=[];
+  for(const rec of REC){
+    const n=next(rec); if(!n||n.kind==='hold')continue;
+    q.push({rec,n,late:n.due<TODAY?diffD(n.due,TODAY):0});
+  }
+  q.sort((a,b)=> b.n.heat-a.n.heat || a.n.due.localeCompare(b.n.due) || (a.rec.pri||9)-(b.rec.pri||9));
+  return q;
+}
+const sentToday=()=>REC.reduce((a,r)=>a+st(r.id).log.filter(l=>l.d===TODAY&&l.k[0]==='m').length,0);
+
+/* ══ mail composer ════════════════════════════ */
+const VISIT=['関東','関西','中部'];
+function resolveRegion(body,blk){
+  const lines=body.split('\n');
+  const marks=[];
+  lines.forEach((l,i)=>{ const m=l.match(/^【([^】]+)】/); if(m&&/(関東|関西|中部|その他地域)/.test(m[1])) marks.push({i,set:m[1]}); });
+  if(marks.length){
+    let keep=marks.find(m=>m.set.split(/[・、]/).includes(blk));
+    if(!keep) keep=marks.find(m=>m.set.includes('その他地域'))||marks[0];
+    marks.forEach(m=>{ lines[m.i] = (m.i===keep.i) ? lines[m.i].replace(/^【[^】]+】/,'') : null; });
+  }
+  let out=lines.filter(l=>l!==null).join('\n');
+  const visit=VISIT.includes(blk);
+  out=out.replace('【面談打診：訪問またはオンライン】', visit
+    ? 'もしよろしければ、一度ご挨拶に伺えないでしょうか。診療の合間の15分でも構いません。ご都合のよい曜日をお知らせいただければ、そちらに合わせます。'
+    : 'もしよろしければ、15分ほどオンラインでお時間をいただけないでしょうか。価格表を画面共有しながらご説明します。');
+  return out;
+}
+/* 引用元の選び方：テンプレの狙いに合う方の記述を拾う */
+function pickQuote(rec,key){
+  const why=(rec.why||'').replace(/\s+/g,' '), kw=(rec.kw||'').replace(/\s+/g,' ');
+  if(key==='A'){ const ref=/紹介|聞い|勧め|知人|友人|同僚|医師/;
+    if(ref.test(why))return why; if(ref.test(kw))return kw; }
+  if(key==='B'||key==='B-歯科') return kw||why;
+  return why||kw;
+}
+/* 件名に入れる製品名：長すぎるときは先頭の語だけ */
+function pickProduct(rec){
+  let p=(rec.kw||'').replace(/\s+/g,' ').trim();
+  if(!p||/^(紹介|ネット検索|検索|chatGPT)$/i.test(p)) p = rec.cat!=='未特定'?rec.cat:'';
+  if(p.length>18){ const first=p.split(/[ 、,／\/・]/).filter(Boolean)[0]||p; p=first.length<=18?first:p.slice(0,18); }
+  return p;
+}
+/* 差出人・社名：未設定なら【　】として残し、要記入に数える */
+function signOff(txt){
+  const n=(S.sender||'').trim(), t=(S.title||'').trim(), co=(S.company||'').trim();
+  if(n){
+    const last=n.split(/[ \u3000]/)[0];
+    txt=txt.replace(/代表取締役 坂口 孝太/g,(t?t+' ':'')+n)
+           .replace(/坂口 孝太/g,n).replace(/坂口/g,last);
+  }else{
+    txt=txt.replace(/代表取締役 坂口 孝太/g,'【役職・氏名】')
+           .replace(/坂口 孝太/g,'【氏名】').replace(/坂口/g,'【担当者名】');
+  }
+  return txt.replace(/リアス株式会社/g, co||'【会社名】');
+}
+function compose(rec,which){
+  const x=st(rec.id);
+  if(x.d&&x.d[which]) return x.d[which];
+  const key = which===1 ? (DATA.tpls[rec.tpl]?rec.tpl:'D') : (which===2?'2通目':'3通目');
+  const t=DATA.tpls[key];
+  let subj=t.subject, body=t.body;
+  const quote=pickQuote(rec,key);
+  const prod=pickProduct(rec);
+  body=body.replace(/【[\s\u3000]*】/,(rec.rep||rec.pic||''));
+  body=body.replace(/「【[^】]*】」/, quote?('「'+quote+'」'):'「（ご登録時のご記入内容）」');
+  subj=subj.replace('【製品名】', prod||'お問い合わせいただいた製品');
+  const cb=(DATA.cats[rec.cat]||DATA.cats['未特定']).block;
+  body=body.replace('★カテゴリ差込★',cb);
+  body=resolveRegion(body,rec.blk);
+  return {subj:signOff(subj),body:signOff(body),tpl:key};
+}
+const blanks=t=>(t.match(/【[^】]*】/g)||[]).length;
+
+/* ══ helpers ══════════════════════════════════ */
+const SEGC={'①':'c1','②':'c2','③':'c3','④':'c4','⑤':'c5','⑥':'c6','★':'c7'};
+const segCls=seg=>SEGC[(seg||'')[0]]||'c6';
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function toast(m){ const t=document.getElementById('toast'); t.textContent=m; t.classList.add('on'); clearTimeout(toast._t); toast._t=setTimeout(()=>t.classList.remove('on'),1700); }
+function copy(txt){ navigator.clipboard?.writeText(txt).then(()=>toast('コピーしました')).catch(()=>toast('コピーできませんでした')); }
+
+/* ══ actions ══════════════════════════════════ */
+function setStatus(id,to,note){
+  if(!to)return;
+  const x=st(id);
+  x.st=to; x.last=TODAY;
+  if(to==='1通目送信'){x.s1=TODAY;logIt(id,'m1',note)}
+  else if(to==='2通目送信'){x.s2=TODAY;logIt(id,'m2',note)}
+  else if(to==='3通目送信'){x.s3=TODAY;logIt(id,'m3',note)}
+  else if(to==='返信あり')logIt(id,'reply',note);
+  else if(to==='電話済'){x.call=TODAY;logIt(id,'call',note)}
+  else logIt(id,'st',to+(note?'／'+note:''));
+  x.snooze='';
+  touch(id); render(); toTop();
+}
+function snooze(id,days){ st(id).snooze=addD(TODAY,days); logIt(id,'hold',days+'日後へ'); touch(id); render(); toTop(); toast(days+'日後に再表示します'); }
+function toTop(){ if(!SHOW_TODAY||TAB!=='today'||document.getElementById('drawer').classList.contains('on'))return;
+  const el=document.getElementById('focusSlot'); if(el)el.scrollIntoView({block:'start',behavior:'smooth'}); }
+
+/* ══ render: 今日 ═════════════════════════════ */
+function viewToday(){
+  const q=queue();
+  const late=q.filter(o=>o.n.due<TODAY), now=q.filter(o=>o.n.due===TODAY), soon=q.filter(o=>o.n.due>TODAY&&o.n.due<=addD(TODAY,7));
+  const todo=[...late,...now];
+  const cap=sentToday();
+  let h='';
+  h+=`<div class="stats c4" style="margin-bottom:22px">
+    <div class="stat"><div class="l">overdue</div><div class="n ${late.length?'hot':''}">${late.length}</div><div class="s">期限切れ</div></div>
+    <div class="stat"><div class="l">today</div><div class="n">${now.length}</div><div class="s">今日やる</div></div>
+    <div class="stat"><div class="l">7 days</div><div class="n">${soon.length}</div><div class="s">今週これから</div></div>
+    <div class="stat"><div class="l">sent</div><div class="n g">${cap}</div><div class="s">本日の送信（上限${S.cap}）</div></div>
+  </div>`;
+
+  if(!todo.length){
+    h+=`<div class="card empty"><div class="big">0</div><div style="margin-top:8px;font-weight:700;color:var(--ink)">今日ぶんは終わりです</div>
+    <div class="tiny" style="margin-top:6px">次にやることは ${soon.length?jp(soon[0].n.due)+'（'+esc(soon[0].rec.name)+'）':'まだありません'}。</div></div>`;
+  }else{
+    h+=`<div class="eyebrow">今日の一件 — 残り ${todo.length}</div><div id="focusSlot"></div>`;
+  }
+  if(todo.length>1){
+    h+=`<div class="qlist card"><div class="pad" style="padding-bottom:6px"><div class="eyebrow" style="margin:0">このあとの順番</div></div>`;
+    todo.slice(1,26).forEach(o=>{
+      h+=`<div class="qrow" onclick="openDrawer('${o.rec.id}')">
+        <span class="qd ${o.n.due<TODAY?'late':''}">${o.n.due<TODAY?'▲'+o.late+'日遅れ':jp(o.n.due)}</span>
+        <span class="qn">${esc(o.rec.name)}</span>
+        <span class="chip">${esc(o.rec.blk)}</span>
+        <span class="qa">${esc(o.n.act)}</span></div>`;
+    });
+    if(todo.length>26)h+=`<div class="qrow muted tiny" style="cursor:default">ほか ${todo.length-26} 件</div>`;
+    h+=`</div>`;
+  }
+  document.getElementById('v-'+TAB).innerHTML=h;
+  if(todo.length) document.getElementById('focusSlot').innerHTML=cardHTML(todo[0].rec,todo[0].n,true);
+}
+
+/* ══ card（今日／ドロワー共通） ═══════════════ */
+function cardHTML(rec,n,focus){
+  const x=st(rec.id);
+  n=n||next(rec);
+  const late=n&&n.due<TODAY;
+  const which = n&&n.kind==='m1'?1 : n&&n.kind==='m2'?2 : n&&n.kind==='m3'?3 : 0;
+  const peers=(rec.peers||[]).map(p=>BYID[p]).filter(Boolean);
+  let h=`<div class="focus ${n&&n.heat>=3?'hot':''}">
+  <div class="fh">
+    <div style="flex:1;min-width:220px">
+      <div class="fname">${esc(rec.name)}</div>
+      <div class="fmeta mono">#${rec.id} · ${esc(rec.pref)}${esc(rec.city)} · 登録 ${esc(rec.reg)}（${diffD(rec.reg,TODAY)}日経過）</div>
+      <div style="margin-top:9px;display:flex;gap:6px;flex-wrap:wrap">
+        <span class="chip ${segCls(rec.seg)}">${esc(rec.seg)}</span>
+        <span class="chip">${esc(rec.cat)}</span>
+        <span class="chip">${esc(rec.biz)}</span>
+        <span class="chip">${esc(rec.blk)}${VISIT.includes(rec.blk)?'・訪問可':'・オンライン'}</span>
+        <span class="chip ${x.st==='未着手'?'':'g'}">${esc(x.st)}</span>
+        ${rec.dup?`<span class="chip r">重複あり</span>`:''}
+        ${rec.biz.includes('要確認')?`<span class="chip y">購入主体 要確認</span>`:''}
+      </div>
+    </div>
+    ${n?`<div class="act ${n.heat>=3?'hot':(late?'late':'')}">${esc(n.act)}${late?' ／ '+diffD(n.due,TODAY)+'日遅れ':''}</div>`:''}
+  </div>
+  <div class="fb">
+    <div class="grid2">
+      <div>
+        <dl class="kv">
+          <dt>代表</dt><dd>${esc(rec.rep)||'—'}</dd>
+          <dt>担当</dt><dd>${esc(rec.pic)||'—'}</dd>
+          <dt>mail</dt><dd><a href="mailto:${esc(rec.mail)}">${esc(rec.mail)||'—'}</a></dd>
+          <dt>tel</dt><dd><a href="tel:${esc(rec.tel)}" class="mono">${esc(rec.tel)||'—'}</a></dd>
+          <dt>テンプレ</dt><dd class="mono">${esc(rec.tpl)} ／ 第${rec.wave}波 ／ 優先${rec.pri}</dd>
+        </dl>
+        <div style="margin-top:14px">
+          ${rec.why?`<div class="quote"><b>登録理由</b>${esc(rec.why)}</div>`:''}
+          ${rec.kw?`<div class="quote"><b>検索キーワード</b>${esc(rec.kw)}</div>`:''}
+          ${rec.want?`<div class="quote"><b>期待している点</b>${esc(rec.want)}</div>`:''}
+          ${rec.info?`<div class="quote"><b>希望する情報</b>${esc(rec.info)}</div>`:''}
+        </div>
+        ${peers.length?`<div class="note" style="margin-top:12px"><b>同一施設に別登録があります。</b>窓口を一本化してから送ってください。<br>${peers.map(p=>`<a href="#" onclick="openDrawer('${p.id}');return false">#${p.id} ${esc(p.pic||p.rep)}（${esc(st(p.id).st)}）</a>`).join(' ／ ')}</div>`:''}
+        <div style="margin-top:12px" class="tiny muted"><b>この層の狙い：</b>${esc(DATA.segs[rec.seg]||'—')}</div>
+        <div style="margin-top:6px" class="tiny muted"><b>面談につなげる口実：</b>${esc((DATA.cats[rec.cat]||DATA.cats['未特定']).hook)}</div>
+        <hr class="d"><div class="eyebrow">これまでの記録</div>${histHTML(rec)}
+      </div>
+      <div>`;
+
+  if(which){
+    const m=compose(rec,which);
+    h+=`<div class="mailbox">
+      <div class="mailbar">
+        <span class="lbl">${which}通目 ／ テンプレ ${esc(m.tpl)}</span>
+        <span style="flex:1"></span>
+        <button class="blanks ${blanks(m.body)===0?'ok':''}" onclick="jumpBlank(this)" title="次の【　】へ移動">要記入 ${blanks(m.body)}</button>
+      </div>
+      <input class="subj" data-rid="${rec.id}" data-w="${which}" value="${esc(m.subj)}" oninput="draft(this)">
+      <textarea class="bodyta" oninput="draft(this)">${esc(m.body)}</textarea>
+      <div class="mailbar" style="border-top:1px solid var(--line);border-bottom:0">
+        <button class="btn s" onclick="copyMail(this)">本文をコピー</button>
+        <button class="btn s" onclick="openMail(this)">メーラーで開く</button>
+        <button class="btn s" onclick="resetDraft(this)">下書きを戻す</button>
+      </div>
+    </div>
+    <div class="tiny muted" style="margin-top:8px">【　】が残っている箇所は必ず自分の言葉で埋めてください。空欄のまま送るのがいちばん事故ります。</div>`;
+  }else{
+    h+=`<div class="card pad"><div class="eyebrow">次にやること</div>
+      <div style="font-size:13px">${n?esc(n.act)+'（期限 '+jp(n.due)+'）':'この先の予定はありません。状況を変えると次のアクションが決まります。'}</div>
+      <hr class="d"><div class="eyebrow">1件あたりの流れ</div>
+      <div class="tiny muted">Day 0 1通目 → 返信があれば即電話 → Day 5〜7 2通目 → Day 14 3通目 → 以降は寝かせる</div></div>`;
+  }
+  h+=`      </div>
+    </div>
+    <hr class="d"><div class="eyebrow">メモ</div>
+    <textarea class="memota" placeholder="通話内容・約束したこと・次に触れる話題" oninput="memo('${rec.id}',this.value)">${esc(x.memo)}</textarea>
+  </div>
+  <div class="acts">${actionBtns(rec,which)}</div>
+  </div>`;
+  return h;
+}
+function actionBtns(rec,which){
+  const x=st(rec.id); const id=rec.id;
+  let b='';
+  if(which===1) b+=`<button class="btn p" onclick="setStatus('${id}','1通目送信')">1通目を送った</button>`;
+  if(which===2) b+=`<button class="btn p" onclick="setStatus('${id}','2通目送信')">2通目を送った</button>`;
+  if(which===3) b+=`<button class="btn p" onclick="setStatus('${id}','3通目送信')">3通目を送った</button>`;
+  if(!CLOSED.includes(x.st)){
+    b+=`<button class="btn h" onclick="setStatus('${id}','返信あり')">返信がきた</button>`;
+    if(['返信あり','電話済','面談打診中','面談実施','見積提出'].includes(x.st)){
+      const flow={'返信あり':'電話済','電話済':'面談打診中','面談打診中':'面談実施','面談実施':'見積提出','見積提出':'受注'};
+      b+=`<button class="btn p" onclick="setStatus('${id}','${flow[x.st]}')">${flow[x.st]}にする</button>`;
+    }
+    b+=`<button class="btn" onclick="snooze('${id}',3)">3日後に</button>`;
+    b+=`<button class="btn" onclick="setStatus('${id}','不要連絡')">不要と言われた</button>`;
+  }else{
+    b+=`<button class="btn" onclick="setStatus('${id}','未着手')">対象に戻す</button>`;
+  }
+  b+=`<span style="flex:1"></span><button class="btn s danger" onclick="delRec('${id}')">名簿から削除</button>`;
+  b+=`<select class="btn s" onchange="setStatus('${id}',this.value)">
+      <option value="">状況を直接変える…</option>${STATUSES.map(s=>`<option${s===x.st?' selected':''}>${s}</option>`).join('')}</select>`;
+  return b;
+}
+function histHTML(rec){
+  const x=st(rec.id);
+  if(!x.log.length) return `<div class="tiny muted">まだ記録はありません。</div>`;
+  return `<div class="tiny">`+x.log.slice().reverse().map(l=>
+    `<div style="display:flex;gap:10px;padding:3px 0;border-bottom:1px solid var(--line2)"><span class="mono" style="color:var(--ink3);width:56px;flex-shrink:0">${jp(l.d)}</span><span>${esc({m1:'1通目 送信',m2:'2通目 送信',m3:'3通目 送信',reply:'返信あり',call:'電話',hold:'保留',st:'状況変更'}[l.k]||l.k)}${l.n?'：'+esc(l.n):''}</span></div>`).join('')+`</div>`;
+}
+function mbox(el){
+  const b=el.closest('.mailbox'); const sj=b.querySelector('.subj'); const bd=b.querySelector('.bodyta');
+  return {b,sj,bd,id:sj.dataset.rid,w:+sj.dataset.w};
+}
+function draft(el){
+  const o=mbox(el), x=st(o.id);
+  x.d=x.d||{}; x.d[o.w]={subj:o.sj.value,body:o.bd.value,tpl:(x.d[o.w]&&x.d[o.w].tpl)||BYID[o.id].tpl||''};
+  const bl=o.b.querySelector('.blanks'), n=blanks(o.bd.value);
+  bl.textContent='要記入 '+n; bl.classList.toggle('ok',n===0);
+  o.bd.style.height='auto'; o.bd.style.height=Math.max(340,o.bd.scrollHeight+6)+'px';
+  touch(o.id);
+}
+function resetDraft(el){
+  const o=mbox(el), x=st(o.id); if(x.d)delete x.d[o.w]; touch(o.id);
+  const inDrawer=!!el.closest('#drawer'); render(); if(inDrawer)openDrawer(o.id);
+}
+function memo(id,v){ st(id).memo=v; touch(id); }
+
+/* ══ 名簿から削除（取り消し可） ═══════════════ */
+let lastDel=null;
+async function purge(id){                     /* 共有版：Supabase から実際に削除 */
+  dirtyRecs.delete(id);
+  await api('DELETE','medixor_state?id=eq.'+encodeURIComponent(id));
+  await api('DELETE','medixor_lead?id=eq.'+encodeURIComponent(id));
+}
+async function unpurge(id){
+  const {id:_x,...data}=BYID[id];
+  await upsert('medixor_lead',[{id,data,updated_at:new Date().toISOString()}]);
+  if(S.r[id]) await upsert('medixor_state',[{id,data:S.r[id],updated_by:ME?ME.name:'',updated_at:new Date().toISOString()}]);
+}
+function dropLocal(id){ REC=REC.filter(x=>x.id!==id); delete BYID[id]; }
+async function delRec(id){
+  const r=BYID[id]; if(!r)return;
+  if(!confirm(r.name+'（#'+r.id+'）を名簿から削除します。\n\n進捗・メモ・下書き・履歴もまとめて消えます。\n元に戻せるのは、削除直後に出る「取り消す」を押した場合だけです。\n\n削除しますか？'))return;
+  lastDel={rec:r,state:S.r[id]};
+  dropLocal(id); delete S.r[id];
+  try{ await purge(id); }catch(e){ toast('削除できませんでした'); return; }
+  closeDrawer(); render(); undoToast(r.name+' を削除しました');
+}
+async function undoDel(){
+  if(!lastDel)return;
+  const {rec,state}=lastDel; lastDel=null;
+  REC.push(rec); REC.sort((a,b)=>a.id.localeCompare(b.id));
+  BYID[rec.id]=rec; if(state)S.r[rec.id]=state; else st(rec.id);
+  try{ await unpurge(rec.id); }catch(e){ toast('元に戻せませんでした'); }
+  touch(rec.id); render(); toast('元に戻しました');
+}
+function undoToast(msg){
+  const t=document.getElementById('toast');
+  t.innerHTML=esc(msg)+' <button onclick="undoDel()" style="margin-left:14px;color:var(--sun);font-weight:800;text-decoration:underline;pointer-events:auto">取り消す</button>';
+  t.classList.add('on'); t.style.pointerEvents='auto';
+  clearTimeout(toast._t);
+  toast._t=setTimeout(()=>{t.classList.remove('on');t.style.pointerEvents='none';lastDel=null},9000);
+}
+function jumpBlank(el){
+  const o=mbox(el), t=o.bd, from=(t.selectionEnd||0);
+  let i=t.value.indexOf('【',from); if(i<0)i=t.value.indexOf('【');
+  if(i<0){ toast('埋めるところはもうありません'); return; }
+  const j=t.value.indexOf('】',i);
+  t.focus(); t.setSelectionRange(i,j<0?i+1:j+1);
+}
+function copyMail(el){ const o=mbox(el); copy('件名：'+o.sj.value+'\n\n'+o.bd.value); }
+function openMail(el){ const o=mbox(el); location.href='mailto:'+encodeURIComponent(BYID[o.id].mail)+'?subject='+encodeURIComponent(o.sj.value)+'&body='+encodeURIComponent(o.bd.value); }
+
+/* ══ drawer ═══════════════════════════════════ */
+function openDrawer(id){
+  const rec=BYID[id];
+  document.getElementById('dTitle').textContent=rec.name;
+  document.getElementById('dBody').innerHTML=cardHTML(rec,null,false);
+  document.getElementById('drawer').classList.add('on');
+  document.getElementById('scrim').classList.add('on');
+  autosize();
+}
+function closeDrawer(){ document.getElementById('drawer').classList.remove('on'); document.getElementById('scrim').classList.remove('on'); render(); }
+document.getElementById('scrim').onclick=closeDrawer;
+
+/* ══ render: リスト ═══════════════════════════ */
+let F={q:'',wave:'',seg:'',cat:'',blk:'',biz:'',st:'',dup:'',due:''};
+function uniq(k){ return [...new Set(REC.map(r=>r[k]).filter(Boolean))]; }
+function filtered(){
+  return REC.filter(r=>{
+    const x=st(r.id);
+    if(F.wave&&String(r.wave)!==F.wave)return false;
+    if(F.seg&&r.seg!==F.seg)return false;
+    if(F.cat&&r.cat!==F.cat)return false;
+    if(F.blk&&r.blk!==F.blk)return false;
+    if(F.biz&&r.biz!==F.biz)return false;
+    if(F.st&&x.st!==F.st)return false;
+    if(F.dup&&!r.dup)return false;
+    if(F.due){ const n=next(r); if(!n||n.kind==='hold'||n.due>TODAY)return false; }
+    if(F.q){ const q=F.q.toLowerCase();
+      if(![r.name,r.rep,r.pic,r.mail,r.tel,r.pref,r.city,r.kw,r.why,r.id].join(' ').toLowerCase().includes(q))return false; }
+    return true;
+  });
+}
+function dueCount(){ return REC.filter(r=>{const n=next(r);return n&&n.kind!=='hold'&&n.due<=TODAY}).length; }
+function viewList(){
+  const sel=(k,arr,lbl)=>`<select onchange="F.${k}=this.value;render()"><option value="">${lbl}</option>${arr.map(v=>`<option${F[k]===String(v)?' selected':''}>${esc(v)}</option>`).join('')}</select>`;
+  const rows=filtered();
+  let h=`<div class="eyebrow">名簿</div><h2 class="sec">全 ${REC.length} 件</h2><div class="sub">絞り込んだ結果：<b class="mono">${rows.length}</b> 件。行をクリックすると文面と操作が開きます。</div>
+  <div class="filters">
+    <input placeholder="施設名・氏名・製品名で検索" value="${esc(F.q)}" oninput="F.q=this.value;render()">
+    ${sel('wave',[1,2,3],'波')}${sel('seg',uniq('seg'),'セグメント')}${sel('cat',uniq('cat'),'カテゴリ')}
+    ${sel('blk',uniq('blk'),'地域')}${sel('biz',uniq('biz'),'業態')}${sel('st',STATUSES,'状況')}
+    <button class="btn s ${F.due?'p':''}" onclick="F.due=F.due?'':'1';render()">期限がきたものだけ${dueCount()?' ('+dueCount()+')':''}</button>
+    <button class="btn s ${F.dup?'p':''}" onclick="F.dup=F.dup?'':'1';render()">重複のみ</button>
+    <button class="btn s" onclick="F={q:'',wave:'',seg:'',cat:'',blk:'',biz:'',st:'',dup:'',due:''};render()">クリア</button>
+    <span style="flex:1"></span><button class="btn s" onclick="exportCSV()">CSVで書き出す</button>
+  </div>
+  <div class="card" style="overflow-x:auto"><table class="t"><thead><tr>
+    <th>波</th><th>施設名</th><th>地域</th><th>セグメント</th><th>カテゴリ</th><th>tpl</th><th>状況</th><th>次にやること</th><th>期限</th><th class="n">経過</th>
+  </tr></thead><tbody>`;
+  rows.slice(0,400).forEach(r=>{
+    const x=st(r.id),n=next(r),late=n&&n.due<TODAY;
+    h+=`<tr class="lrow" onclick="openDrawer('${r.id}')">
+      <td><span class="pill">${r.wave||'—'}</span></td>
+      <td><b>${esc(r.name)}</b>${r.dup?' <span class="chip r">重</span>':''}<div class="tiny muted">${esc(r.rep||r.pic)}</div></td>
+      <td class="tiny">${esc(r.pref)}</td><td class="tiny"><span class="chip ${segCls(r.seg)}">${esc(r.seg)}</span></td><td class="tiny">${esc(r.cat)}</td>
+      <td><span class="pill">${esc(r.tpl)}</span></td>
+      <td><span class="chip ${x.st==='未着手'?'':(CLOSED.includes(x.st)?'':'g')}">${esc(x.st)}</span></td>
+      <td class="tiny">${n?esc(n.act):'—'}</td>
+      <td class="n tiny" style="${late?'color:var(--hot);font-weight:700':''}">${n?jp(n.due):'—'}</td>
+      <td class="n tiny muted">${diffD(r.reg,TODAY)}日</td></tr>`;
+  });
+  h+=`</tbody></table></div>${rows.length>400?'<div class="tiny muted" style="margin-top:10px">先頭400件を表示しています。絞り込んでください。</div>':''}`;
+  document.getElementById('v-list').innerHTML=h;
+}
+
+/* ══ render: 数字 ═════════════════════════════ */
+function grp(keyFn){
+  const m={};
+  REC.forEach(r=>{
+    const x=st(r.id); if(x.st==='対象外')return;
+    const k=keyFn(r)||'—';
+    m[k]=m[k]||{n:0,sent:0,reply:0,meet:0,won:0,ng:0};
+    const g=m[k]; g.n++;
+    if(x.s1)g.sent++;
+    if(x.log.some(l=>l.k==='reply'))g.reply++;
+    if(['面談実施','見積提出','受注'].includes(x.st))g.meet++;
+    if(x.st==='受注')g.won++;
+    if(x.st==='不要連絡')g.ng++;
+  });
+  return m;
+}
+function rateTable(title,keyFn,note){
+  const m=grp(keyFn);
+  const ks=Object.keys(m).sort((a,b)=>m[b].sent-m[a].sent||m[b].n-m[a].n);
+  const max=Math.max(...ks.map(k=>m[k].sent?m[k].reply/m[k].sent:0),.001);
+  let h=`<details class="acc" open><summary>${esc(title)}<span class="tiny muted" style="font-weight:400">${esc(note||'')}</span></summary><div class="accb" style="overflow-x:auto"><table class="t"><thead><tr>
+    <th>${esc(title.split('別')[0])}</th><th class="n">対象</th><th class="n">送信</th><th class="n">返信</th><th class="n">返信率</th><th style="width:130px"></th><th class="n">商談</th><th class="n">受注</th><th class="n">不要</th></tr></thead><tbody>`;
+  ks.forEach(k=>{
+    const g=m[k], rate=g.sent?g.reply/g.sent:0;
+    h+=`<tr><td>${esc(k)}</td><td class="n muted">${g.n}</td><td class="n">${g.sent}</td><td class="n">${g.reply}</td>
+      <td class="n"><b>${g.sent?(rate*100).toFixed(1)+'%':'—'}</b></td>
+      <td><div class="bar"><i class="${g.sent<5?'low':''}" style="width:${Math.min(100,rate/max*100)}%"></i></div></td>
+      <td class="n">${g.meet}</td><td class="n">${g.won}</td><td class="n muted">${g.ng}</td></tr>`;
+  });
+  return h+`</tbody></table><div class="tiny muted" style="margin-top:8px">送信5件未満は薄いバーで表示しています。母数が少ないうちは差を読まないでください。</div></div></details>`;
+}
+function viewStats(){
+  const live=REC.filter(r=>st(r.id).st!=='対象外');
+  const c=k=>live.filter(k).length;
+  const sent=c(r=>st(r.id).s1), reply=c(r=>st(r.id).log.some(l=>l.k==='reply'));
+  const call=c(r=>st(r.id).call), meet=c(r=>['面談実施','見積提出','受注'].includes(st(r.id).st));
+  const quote=c(r=>['見積提出','受注'].includes(st(r.id).st)), won=c(r=>st(r.id).st==='受注'), ng=c(r=>st(r.id).st==='不要連絡');
+  const pct=(a,b)=>b?(a/b*100).toFixed(1)+'%':'—';
+  let h=`<div class="eyebrow">Check — 数字を見る</div><h2 class="sec">第${weekNo()}週 ／ 12週</h2>
+  <div class="sub">送ってから返ってくるまでを1本で見ます。テンプレ別の返信率が、いちばん先に手を入れるべき場所を教えてくれます。</div>
+  <div class="stats c4" style="margin-bottom:14px">
+    <div class="stat"><div class="l">target</div><div class="n">${live.length}</div><div class="s">営業対象</div></div>
+    <div class="stat"><div class="l">sent</div><div class="n">${sent}</div><div class="s">1通目 送信済 ${pct(sent,live.length)}</div></div>
+    <div class="stat"><div class="l">reply</div><div class="n g">${reply}</div><div class="s">返信 ${pct(reply,sent)}</div></div>
+    <div class="stat"><div class="l">call</div><div class="n">${call}</div><div class="s">電話まで到達</div></div>
+    <div class="stat"><div class="l">meeting</div><div class="n">${meet}</div><div class="s">商談 ${pct(meet,sent)}</div></div>
+    <div class="stat"><div class="l">quote</div><div class="n">${quote}</div><div class="s">見積提出</div></div>
+    <div class="stat"><div class="l">won</div><div class="n g">${won}</div><div class="s">受注</div></div>
+    <div class="stat"><div class="l">opt-out</div><div class="n ${ng>sent*.1&&sent>20?'hot':''}">${ng}</div><div class="s">不要連絡 ${pct(ng,sent)}</div></div>
+  </div>`;
+
+  /* 波の進捗 */
+  h+=`<div class="card pad" style="margin-bottom:14px"><div class="eyebrow">波ごとの進み具合</div>`;
+  [1,2,3].forEach(w=>{
+    const t=live.filter(r=>r.wave===w), d=t.filter(r=>st(r.id).s1).length;
+    const on=TODAY>=waveStart(w)&&TODAY<=waveEnd(w);
+    h+=`<div style="display:flex;align-items:center;gap:12px;padding:7px 0">
+      <span class="mono tiny" style="width:190px;flex-shrink:0;${on?'font-weight:700':''}">第${w}波 ${jp(waveStart(w))}–${jp(waveEnd(w))}${on?' ← 今ここ':''}</span>
+      <div class="bar" style="flex:1"><i style="width:${t.length?d/t.length*100:0}%"></i></div>
+      <span class="mono tiny" style="width:76px;text-align:right">${d} / ${t.length}</span></div>`;
+  });
+  h+=`</div>`;
+
+  /* 日次送信 */
+  const days=[...Array(14)].map((_,i)=>addD(TODAY,-13+i));
+  const cnt=days.map(d=>REC.reduce((a,r)=>a+st(r.id).log.filter(l=>l.d===d&&l.k[0]==='m').length,0));
+  const mx=Math.max(S.cap,...cnt);
+  h+=`<div class="card pad" style="margin-bottom:14px"><div class="eyebrow">直近14日の送信数（1日 ${S.cap} 通が上限）</div>
+    <div style="display:flex;align-items:flex-end;gap:5px;height:88px;margin-top:8px">`;
+  days.forEach((d,i)=>{ const over=cnt[i]>S.cap;
+    h+=`<div style="flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:5px" title="${d}：${cnt[i]}通">
+      <span class="mono" style="font-size:10px;color:${over?'var(--hot-t)':'var(--ink3)'}">${cnt[i]||''}</span>
+      <div style="width:100%;height:${cnt[i]/mx*58}px;min-height:${cnt[i]?3:2}px;background:${over?'var(--hot)':(cnt[i]?'linear-gradient(180deg,var(--pri),var(--sky))':'#E9DACC')};border-radius:3px"></div>
+      <span class="mono" style="font-size:9px;color:var(--ink3)">${jp(d)}</span></div>`;});
+  h+=`</div></div>`;
+
+  h+=rateTable('テンプレ別 返信率',r=>r.tpl,'　いちばん先に直すのはここ');
+  h+=rateTable('セグメント別 返信率',r=>r.seg);
+  h+=rateTable('製品カテゴリ別 返信率',r=>r.cat);
+  h+=rateTable('地域別 返信率',r=>r.blk);
+  h+=rateTable('業態別 返信率',r=>r.biz);
+  document.getElementById('v-stats').innerHTML=h;
+}
+
+/* ══ render: ふりかえり ═══════════════════════ */
+function weekSnap(mon){
+  const sun=addD(mon,6);
+  const inW=d=>d>=mon&&d<=sun;
+  let m=0,rp=0,cl=0,mt=0,ng=0;
+  REC.forEach(r=>st(r.id).log.forEach(l=>{ if(!inW(l.d))return;
+    if(l.k[0]==='m')m++; else if(l.k==='reply')rp++; else if(l.k==='call')cl++;
+    else if(l.k==='st'&&/面談実施|見積提出|受注/.test(l.n))mt++;
+    else if(l.k==='st'&&/不要連絡/.test(l.n))ng++; }));
+  return {m,rp,cl,mt,ng};
+}
+let RW=weekMonday(TODAY);
+function viewReview(){
+  const keys=new Set([weekMonday(TODAY)]);
+  Object.keys(S.weeks).forEach(k=>keys.add(k));
+  for(let i=1;i<=8;i++)keys.add(addD(weekMonday(TODAY),-7*i));
+  const list=[...keys].sort().reverse().filter(k=>k<=weekMonday(TODAY));
+  const w=S.weeks[RW]||{p:'',d:'',c:'',a:''};
+  const sn=weekSnap(RW);
+  const box=(k,ttl,ph,val)=>`<div class="box"><h4><i>${k.toUpperCase()}</i>${ttl}</h4><textarea placeholder="${esc(ph)}" oninput="setWeek('${k}',this.value)">${esc(val)}</textarea></div>`;
+  let h=`<div class="eyebrow">Act — 来週を決める</div><h2 class="sec">週次ふりかえり</h2>
+  <div class="sub">数字を見て、来週変えることを1つだけ決めます。ここを埋めないとPDCAはただの作業記録になります。</div>
+  <div class="filters"><select onchange="RW=this.value;render()">${list.map(k=>`<option value="${k}"${k===RW?' selected':''}>${k.replace(/-/g,'/')} の週${k===weekMonday(TODAY)?'（今週）':''}${S.weeks[k]?' ✓':''}</option>`).join('')}</select></div>
+  <div class="stats c5" style="margin-bottom:16px">
+    <div class="stat"><div class="l">sent</div><div class="n">${sn.m}</div><div class="s">この週の送信</div></div>
+    <div class="stat"><div class="l">reply</div><div class="n g">${sn.rp}</div><div class="s">返信 ${sn.m?(sn.rp/sn.m*100).toFixed(0)+'%':'—'}</div></div>
+    <div class="stat"><div class="l">call</div><div class="n">${sn.cl}</div><div class="s">電話</div></div>
+    <div class="stat"><div class="l">meeting</div><div class="n">${sn.mt}</div><div class="s">商談まで進んだ</div></div>
+    <div class="stat"><div class="l">opt-out</div><div class="n">${sn.ng}</div><div class="s">不要連絡</div></div>
+  </div>
+  <div class="pdca">
+    ${box('p','今週の狙い','どのセグメントに何通、何を検証するか。例：品質重視7件にEテンプレ。返信率が他より高いか見る',w.p)}
+    ${box('d','実際にやったこと','送った数、電話した数、想定とずれた点',w.d)}
+    ${box('c','数字から分かったこと','上の集計を見て。母数が少ないうちは断定しない',w.c)}
+    ${box('a','来週変える1つ','件名を変える／送る順を変える／訪問日を先に押さえる。1つだけ',w.a)}
+  </div>`;
+  const past=Object.keys(S.weeks).filter(k=>k!==RW&&(S.weeks[k].p||S.weeks[k].a)).sort().reverse();
+  if(past.length){
+    h+=`<div style="margin-top:24px"><div class="eyebrow">これまでの「変えた1つ」</div>`;
+    past.forEach(k=>h+=`<div class="card pad" style="margin-bottom:8px"><span class="mono tiny muted">${k.replace(/-/g,'/')}</span><div style="font-size:13px;margin-top:2px">${esc(S.weeks[k].a||S.weeks[k].c||'—')}</div></div>`);
+    h+=`</div>`;
+  }
+  document.getElementById('v-review').innerHTML=h;
+}
+function setWeek(k,v){ S.weeks[RW]=S.weeks[RW]||{p:'',d:'',c:'',a:''}; S.weeks[RW][k]=v; touch(); }
+
+/* ══ render: 計画 ═════════════════════════════ */
+function viewPlan(){
+  let h=`<div class="eyebrow">Plan — 決めごと</div><h2 class="sec">12週の設計図</h2>
+  <div class="sub">迷ったらここに戻ります。文面・地域・注意点は元の戦略ファイルの内容をそのまま持ってきています。</div>`;
+
+  h+=`<details class="acc" open><summary>設定</summary><div class="accb">
+    <div class="filters">
+      <label class="tiny muted">開始日<input type="date" value="${S.start}" onchange="S.start=this.value;touch();render()" style="margin-left:6px"></label>
+      <label class="tiny muted">1日の送信上限<input type="number" min="1" max="200" value="${S.cap}" onchange="S.cap=+this.value||25;touch();render()" style="width:70px;margin-left:6px"></label>
+      <label class="tiny muted">会社名<input value="${esc(S.company)}" placeholder="例：リアス株式会社" onchange="S.company=this.value;touch();render()" style="width:150px;margin-left:6px"></label>
+      <label class="tiny muted">差出人<input value="${esc(S.sender)}" placeholder="例：坂口 孝太" onchange="S.sender=this.value;touch();render()" style="width:140px;margin-left:6px"></label>
+      <label class="tiny muted">役職<input value="${esc(S.title)}" placeholder="例：代表取締役" onchange="S.title=this.value;touch();render()" style="width:120px;margin-left:6px"></label>
+      <span style="flex:1"></span>
+      <button class="btn s" onclick="exportJSON()">進捗を書き出す(JSON)</button>
+    </div>
+    <hr class="d">
+    <div class="filters">
+      <span class="tiny muted">ログイン中：<b id="who2">${esc(ME?ME.name:'')}</b></span>
+      <button class="btn s" onclick="pull(false).then(()=>toast('最新を取り込みました'))">いま同期する</button>
+      <button class="btn s" onclick="document.getElementById('seed').click()">名簿を取り込む（初回のみ）</button>
+      <input type="file" id="seed" accept=".json" style="display:none" onchange="seedLeads(this)">
+      <span style="flex:1"></span>
+      <button class="btn s" onclick="signOut()">ログアウト</button>
+    </div>
+    <div class="tiny muted">進捗は自動で共有されます。他のメンバーの操作は20秒ごとに反映されます。同じ相手を同時に触ったときは、あとから保存したほうが残ります。</div>
+    <div class="tiny muted">開始日を変えると第2波・第3波の期限がまとめてずれます。1日の送信上限はドメイン評価を守るための数字です。<br>
+    会社名・差出人を空のままにすると、文面の該当箇所が <b>【会社名】【担当者名】【役職・氏名】</b> として残り、「要記入」に数えられます。決まったらここに入れれば全通に反映されます。<br>
+    カタログ・価格表の送付を約束する文言は文面から外してあります（見積で受ける形に変更済み）。用意ができたら、下の「カテゴリ別 差込文」を見ながら文面に足してください。</div>
+  </div></details>`;
+
+  h+=`<details class="acc" open><summary>送信の波</summary><div class="accb">`;
+  const waves=[[1,'第1波：優先度1（紹介・品質重視・乗り換え・開業）','A / E / C / F / F-歯科','文面の当たり外れを見る期間。返信は当日中に電話まで進める。並行して東京出張の日程を先に確定させる'],
+               [2,'第2波：優先度2（製品名指し）','B / B-歯科','製品カテゴリ単位で送る。ボツリヌス系→スキンブースター→脂肪溶解の順に、価格表が用意できたものから'],
+               [3,'第3波：優先度3（無回答）','D','カテゴリを1つ答えてもらうのがゴール。返信があった先は⑤に移して第2波と同じ扱いにする']];
+  waves.forEach(([w,t,tp,note])=>{
+    const n=REC.filter(r=>r.wave===w&&st(r.id).st!=='対象外').length;
+    const d=REC.filter(r=>r.wave===w&&st(r.id).s1).length;
+    h+=`<div style="padding:11px 0;border-bottom:1px solid var(--line2)">
+      <div style="display:flex;gap:12px;align-items:baseline;flex-wrap:wrap">
+        <b style="font-size:13.5px">${t}</b><span class="pill">${tp}</span>
+        <span class="mono tiny muted">${jp(waveStart(w))} – ${jp(waveEnd(w))}</span>
+        <span style="flex:1"></span><span class="mono tiny">${d} / ${n}</span></div>
+      <div class="bar" style="margin:7px 0"><i style="width:${n?d/n*100:0}%"></i></div>
+      <div class="tiny muted">${note}</div></div>`;
+  });
+  h+=`<div style="padding:12px 0"><div class="eyebrow">1件あたりの流れ</div>
+    <table class="t"><tbody>
+    <tr><td class="mono tiny" style="width:88px">Day 0</td><td><b>1通目メール</b><div class="tiny muted">登録時の記入内容に答えるだけ。面談はまだ打診しない（紹介経由を除く）</div></td></tr>
+    <tr><td class="mono tiny">Day 1〜</td><td><b>返信があれば即電話</b><div class="tiny muted">メールのラリーを続けると熱が冷める。返信当日か翌日に電話する</div></td></tr>
+    <tr><td class="mono tiny">Day 5〜7</td><td><b>2通目メール</b><div class="tiny muted">訪問可能地域は訪問、それ以外はZoom15分に自動で振り分ける</div></td></tr>
+    <tr><td class="mono tiny">Day 14</td><td><b>3通目メール</b><div class="tiny muted">最後の案内である旨を明記＋いちばん強い条件を1つ。不要なら配信停止を受ける</div></td></tr>
+    <tr><td class="mono tiny">Day 14以降</td><td><b>反応なしは寝かせる</b><div class="tiny muted">追いすぎない。四半期に一度の情報提供メールに切り替える</div></td></tr>
+    </tbody></table></div></div></details>`;
+
+  h+=`<details class="acc"><summary>地域別のさばき方</summary><div class="accb" style="overflow-x:auto"><table class="t"><thead><tr>
+    <th>地域</th><th class="n">件数</th><th>接触方法</th><th>面談の作り方</th><th>移動</th><th>優先</th></tr></thead><tbody>`;
+  Object.entries(DATA.blocks).forEach(([k,v])=>{
+    const n=REC.filter(r=>r.blk===k&&st(r.id).st!=='対象外').length;
+    h+=`<tr><td><b>${esc(k)}</b></td><td class="n">${n}</td><td class="tiny">${esc(v.how)}</td><td class="tiny">${esc(v.meet)}</td><td class="tiny">${esc(v.move)}</td><td><span class="chip ${v.pri==='最優先'?'g':''}">${esc(v.pri)}</span></td></tr>`;
+  });
+  h+=`</tbody></table></div></details>`;
+
+  h+=`<details class="acc"><summary>テンプレの設計意図</summary><div class="accb">`;
+  Object.entries(DATA.tpls).forEach(([k,v])=>{
+    const n=REC.filter(r=>r.tpl===k).length;
+    h+=`<div style="padding:11px 0;border-bottom:1px solid var(--line2)">
+      <div style="display:flex;gap:9px;align-items:baseline;flex-wrap:wrap"><span class="pill">${esc(k)}</span><b class="tiny">${esc(v.seg)}</b>${n?`<span class="mono tiny muted">${n}件</span>`:''}</div>
+      <div style="font-size:13px;margin-top:4px">件名：${esc(signOff(v.subject))}</div>
+      ${v.why?`<div class="tiny muted" style="margin-top:4px">${esc(v.why)}</div>`:''}</div>`;
+  });
+  h+=`</div></details>`;
+
+  h+=`<details class="acc"><summary>カテゴリ別 差込文</summary><div class="accb">`;
+  Object.entries(DATA.cats).forEach(([k,v])=>{
+    const n=REC.filter(r=>r.cat===k&&st(r.id).st!=='対象外').length;
+    h+=`<div style="padding:11px 0;border-bottom:1px solid var(--line2)">
+      <div style="display:flex;gap:9px;align-items:baseline"><b class="tiny">${esc(k)}</b><span class="mono tiny muted">${n}件</span></div>
+      <div class="quote" style="margin-top:5px">${esc(v.block)}</div>
+      <div class="tiny muted" style="margin-top:4px"><b>口実：</b>${esc(v.hook)}</div></div>`;
+  });
+  h+=`</div></details>`;
+
+  h+=`<details class="acc" open><summary>送る前に必ず確認すること</summary><div class="accb">`;
+  DATA.notes.forEach((n,i)=>{
+    h+=`<div class="${i===0?'note':''}" style="${i===0?'':'padding:11px 0;border-bottom:1px solid var(--line2)'}${i===0?'margin-bottom:12px':''}">
+      <b style="font-size:13px">${esc(n.t)}</b>
+      <div class="tiny" style="margin-top:3px">${esc(n.body)}</div>
+      ${n.do?`<div class="tiny" style="margin-top:4px;color:var(--pri-d)"><b>→</b> ${esc(n.do)}</div>`:''}</div>`;
+  });
+  h+=`</div></details>`;
+  document.getElementById('v-plan').innerHTML=h;
+}
+
+/* ══ export ═══════════════════════════════════ */
+function dl(name,txt,mime){
+  const b=new Blob([txt],{type:mime||'text/plain;charset=utf-8'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download=name; a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),2000); toast('書き出しました');
+}
+function exportJSON(){ dl('medixor-pdca-'+TODAY+'.json',JSON.stringify(S),'application/json'); }
+function exportCSV(){
+  const cols=['会員ID','施設名','都道府県','市区町村','地域','セグメント','カテゴリ','業態','テンプレ','波','代表者','担当者','メール','電話','登録日','状況','1通目','2通目','3通目','電話日','次アクション','期限','メモ'];
+  const rows=filtered().map(r=>{ const x=st(r.id),n=next(r);
+    return [r.id,r.name,r.pref,r.city,r.blk,r.seg,r.cat,r.biz,r.tpl,r.wave,r.rep,r.pic,r.mail,r.tel,r.reg,x.st,x.s1,x.s2,x.s3,x.call,n?n.act:'',n?n.due:'',(x.memo||'').replace(/\n/g,' ')]; });
+  const q=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
+  dl('medixor-list-'+TODAY+'.csv','\ufeff'+[cols,...rows].map(r=>r.map(q).join(',')).join('\r\n'),'text/csv;charset=utf-8');
+}
+
+/* ══ 同期：他メンバーの更新を取り込む ═════════ */
+async function pull(first){
+  if(syncing||!ME)return; syncing=true;
+  try{
+    if(first){
+      const leads=await api('GET','medixor_lead?select=id,data&order=id');
+      REC=leads.map(l=>Object.assign({id:l.id},l.data));
+      BYID=Object.fromEntries(REC.map(r=>[r.id,r]));
+      const meta=await api('GET','medixor_meta?select=k,data');
+      (meta||[]).forEach(m=>{ if(m.k==='settings')Object.assign(S,m.data); if(m.k==='weeks')S.weeks=m.data||{}; });
+    }
+    const q='medixor_state?select=id,data,updated_at'+(lastSync?'&updated_at=gt.'+encodeURIComponent(lastSync):'');
+    const rows=await api('GET',q);
+    let changed=0;
+    (rows||[]).forEach(r=>{
+      if(dirtyRecs.has(r.id))return;              /* 自分の未保存分は上書きしない */
+      S.r[r.id]=r.data; changed++;
+      if(!lastSync||r.updated_at>lastSync)lastSync=r.updated_at;
+    });
+    if(first){ REC.forEach(r=>st(r.id)); render(); }
+    else if(changed && !typing()){ render(); setSaved('他メンバーの更新を '+changed+' 件反映'); }
+  }catch(e){ if(first)throw e; }
+  finally{ syncing=false; }
+}
+const typing=()=>{ const a=document.activeElement; return a&&/TEXTAREA|INPUT/.test(a.tagName); };
+
+/* ══ 名簿の取り込み（初回のみ） ═══════════════ */
+async function seedLeads(el){
+  const f=el.files[0]; el.value=''; if(!f)return;
+  try{
+    const arr=JSON.parse(await f.text());
+    if(!Array.isArray(arr)||!arr[0]||!arr[0].id) throw new Error('medixor-leads.json を選んでください');
+    setSaved('名簿を取り込み中… 0 / '+arr.length);
+    for(let i=0;i<arr.length;i+=50){
+      const chunk=arr.slice(i,i+50).map(r=>{ const {id,...rest}=r; return {id:String(id),data:rest}; });
+      await upsert('medixor_lead',chunk);
+      setSaved('名簿を取り込み中… '+Math.min(i+50,arr.length)+' / '+arr.length);
+    }
+    toast(arr.length+'件を取り込みました');
+    lastSync=null; await pull(true);
+  }catch(e){ setSaved('取り込みに失敗しました：'+e.message,1); }
+}
+
+/* ══ chrome ═══════════════════════════════════ */
+const TABS=[['today','今日'],['list','名簿'],['stats','数字'],['review','ふりかえり'],['plan','計画']]
+  .filter(t=>t[0]!=='today'||SHOW_TODAY);
+let TAB=TABS[0][0];
+function renderTabs(){
+  const q=queue(); const todo=q.filter(o=>o.n.due<=TODAY).length; const late=q.filter(o=>o.n.due<TODAY).length;
+  document.getElementById('tabs').innerHTML=TABS.map(([k,l])=>
+    `<button class="tab ${TAB===k?'on':''}" onclick="go('${k}')">${l}${k==='today'&&todo?`<em class="${late?'hot':''}">${todo}</em>`:''}${k==='list'?`<em class="${!SHOW_TODAY&&late?'hot':''}">${!SHOW_TODAY&&todo?todo+' / ':''}${REC.length}</em>`:''}</button>`).join('');
+}
+function renderRail(){
+  const w=weekNo();
+  document.getElementById('rail').innerHTML=[...Array(12)].map((_,i)=>{
+    const n=i+1, wv=n<=3?1:n<=8?2:3;
+    return `<i class="w${wv} ${n<w?'past':''} ${n===w?'now':''}" title="第${n}週／第${wv}波"></i>`;}).join('');
+  document.getElementById('railcap').textContent=`第${w}週 / 12　—　${jp(S.start)} 開始　·　いまは第${w<=3?1:w<=8?2:3}波`;
+  const cap=sentToday(), pctv=Math.min(1,cap/Math.max(1,S.cap));
+  const arc=document.getElementById('ringArc');
+  arc.setAttribute('stroke-dasharray',(pctv*106.8).toFixed(1)+' 106.8');
+  arc.setAttribute('stroke',cap>S.cap?'#FF3D71':'#2FD196');
+  arc.setAttribute('opacity',cap?1:0);
+  document.getElementById('capNow').textContent=cap;
+  document.getElementById('capMax').textContent=S.cap;
+}
+function go(k){ if(k==='today'&&!SHOW_TODAY)k='list'; TAB=k; document.querySelectorAll('.view').forEach(v=>v.classList.toggle('on',v.id==='v-'+k)); render(); window.scrollTo({top:0,behavior:'instant'}); }
+function autosize(){
+  document.querySelectorAll('.mailbox .bodyta').forEach(t=>{ t.style.height='auto'; t.style.height=Math.max(340,t.scrollHeight+6)+'px'; });
+}
+function render(){
+  document.querySelectorAll('.view').forEach(v=>v.classList.toggle('on',v.id==='v-'+TAB));
+  renderTabs(); renderRail();
+  if(TAB==='today'&&SHOW_TODAY)viewToday();
+  else if(TAB==='list'||TAB==='today')viewList();
+  else if(TAB==='stats')viewStats();
+  else if(TAB==='review')viewReview();
+  else viewPlan();
+  autosize();
+}
+window.addEventListener('beforeunload',()=>{ if(dirty)save(); });
+
+async function boot(){
+  document.getElementById('gate').style.display='none';
+  document.getElementById('app').style.display='';
+  document.getElementById('who').textContent=ME.name;
+  await pull(true);
+  if(!REC.length){
+    document.getElementById('v-'+TAB).innerHTML=
+      '<div class="card empty"><div style="font-weight:700;color:var(--ink)">名簿がまだ入っていません</div>'+
+      '<div class="tiny" style="margin-top:8px">計画タブの設定から <b>medixor-leads.json</b> を取り込んでください。最初の一度だけの作業です。</div></div>';
+  }
+  clearInterval(boot._p); boot._p=setInterval(()=>pull(false),20000);
+  document.addEventListener('visibilitychange',()=>{ if(!document.hidden)pull(false) });
+}
+async function doLogin(){
+  const e=document.getElementById('gEmail').value.trim(), p=document.getElementById('gPw').value;
+  const msg=document.getElementById('gateMsg'), btn=document.getElementById('gBtn');
+  if(!e||!p){ msg.textContent='メールアドレスとパスワードを入れてください'; return; }
+  btn.disabled=true; msg.textContent='確認しています…';
+  try{ await signIn(e,p); await boot(); }
+  catch(err){ msg.textContent=err.message; btn.disabled=false; }
+}
+(async function init(){
+  if(/XXXX/.test(CFG.url)||/XXXX/.test(CFG.key)){
+    document.getElementById('gateMsg').textContent='CFG の url と key がまだ未設定です。index.html の先頭を書き換えてください。';
+    return;
+  }
+  document.getElementById('gPw').addEventListener('keydown',ev=>{ if(ev.key==='Enter')doLogin() });
+  try{ if(await refresh()){ await boot(); return; } }catch(e){}
+  document.getElementById('gateMsg').textContent='';
+  document.getElementById('gEmail').focus();
+})();
+</script>
+</body>
+</html>
