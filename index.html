@@ -275,7 +275,7 @@ table.t td.n{font-family:var(--mono);font-variant-numeric:tabular-nums;text-alig
 /* ═══ Supabase の接続先。ここだけ書き換えてください ═══ */
 const CFG = {
   url: 'https://jnttziptsgajkagaffdf.supabase.co',
-  key: 'ここに anon public キーを貼る'
+  key: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpudHR6aXB0c2dhamthZ2FmZmRmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc4MTg3MDgsImV4cCI6MjEwMzM5NDcwOH0.7e9h1RQdaQNk3ZCqhNnIx0mhnqQ8IvOPn3U0K7lBbgs'
 };
 /* ══════════════════════════════════════════════════════ */
 
@@ -1126,8 +1126,10 @@ async function doLogin(){
   catch(err){ msg.textContent=err.message; btn.disabled=false; }
 }
 (async function init(){
-  if(/XXXX/.test(CFG.url)||/XXXX/.test(CFG.key)){
-    document.getElementById('gateMsg').textContent='CFG の url と key がまだ未設定です。index.html の先頭を書き換えてください。';
+  const bad=v=>!v||/XXXX|PASTE_ANON_KEY|[^\x00-\xFF]/.test(v);
+  if(bad(CFG.url)||bad(CFG.key)||CFG.key.slice(0,3)!=='eyJ'){
+    document.getElementById('gateMsg').textContent=
+      'anon public キーがまだ入っていません。index.html の CFG の key に、eyJ で始まるキーを貼ってください。';
     return;
   }
   document.getElementById('gPw').addEventListener('keydown',ev=>{ if(ev.key==='Enter')doLogin() });
