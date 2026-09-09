@@ -609,7 +609,7 @@ function weekMonday(s){ const d=new Date(s+'T00:00:00'); d.setDate(d.getDate()-(
 /* ══ state ════════════════════════════════════ */
 const STATUSES=['未着手','1通目送信','2通目送信','3通目送信','返信あり','電話済','面談打診中','面談実施','見積提出','受注','不要連絡','寝かせ','対象外'];
 const CLOSED=['受注','不要連絡','対象外','寝かせ'];
-let S={v:1,start:TODAY,cap:25,company:'',sender:'',title:'',r:{},weeks:{},del:[]};
+let S={v:1,start:TODAY,cap:25,company:'',sender:'',title:'',gmail:'',r:{},weeks:{},del:[]};
 let dirty=false;
 
 function st(id){
@@ -633,7 +633,7 @@ async function save(){
     if(ids.length) await upsert('medixor_state',
       ids.map(id=>({id,data:S.r[id],updated_by:ME?ME.name:'',updated_at:new Date().toISOString()})));
     if(meta) await upsert('medixor_meta',[
-      {k:'settings',data:{start:S.start,cap:S.cap,company:S.company,sender:S.sender,title:S.title},updated_at:new Date().toISOString()},
+      {k:'settings',data:{start:S.start,cap:S.cap,company:S.company,sender:S.sender,title:S.title,gmail:S.gmail},updated_at:new Date().toISOString()},
       {k:'weeks',data:S.weeks,updated_at:new Date().toISOString()}]);
     setSaved('保存済み '+new Date().toTimeString().slice(0,5));
   }catch(e){
@@ -911,6 +911,7 @@ function cardHTML(rec,n,focus){
       <input class="subj" data-rid="${rec.id}" data-w="${which}" value="${esc(m.subj)}" oninput="draft(this)">
       <textarea class="bodyta" oninput="draft(this)">${esc(m.body)}</textarea>
       <div class="mailbar" style="border-top:1px solid var(--line);border-bottom:0">
+        <button class="btn s p" onclick="openGmail(this)">Gmailで開く</button>
         <button class="btn s" onclick="copyMail(this)">本文をコピー</button>
         <button class="btn s" onclick="openMail(this)">メーラーで開く</button>
         <button class="btn s" onclick="resetDraft(this)">下書きを戻す</button>
@@ -1022,6 +1023,17 @@ function jumpBlank(el){
   t.focus(); t.setSelectionRange(i,j<0?i+1:j+1);
 }
 function copyMail(el){ const o=mbox(el); copy('件名：'+o.sj.value+'\n\n'+o.bd.value); }
+/* Gmail の新規作成画面を、宛先・件名・本文が入った状態で開く */
+function openGmail(el){
+  const o=mbox(el), rec=BYID[o.id], acct=(S.gmail||'').trim();
+  const head='https://mail.google.com/mail/?view=cm&fs=1'
+    +(acct?'&authuser='+encodeURIComponent(acct):'')
+    +'&to='+encodeURIComponent(rec.mail||'')
+    +'&su='+encodeURIComponent(o.sj.value);
+  const full=head+'&body='+encodeURIComponent(o.bd.value);
+  if(full.length<=7000){ window.open(full,'_blank','noopener'); }
+  else{ copy(o.bd.value); window.open(head,'_blank','noopener'); toast('本文が長いためコピーしました。Gmailで貼り付けてください'); }
+}
 function openMail(el){ const o=mbox(el); location.href='mailto:'+encodeURIComponent(BYID[o.id].mail)+'?subject='+encodeURIComponent(o.sj.value)+'&body='+encodeURIComponent(o.bd.value); }
 
 /* ══ drawer ═══════════════════════════════════ */
@@ -1231,6 +1243,7 @@ function viewPlan(){
       <label class="tiny muted">会社名<input value="${esc(S.company)}" placeholder="例：リアス株式会社" onchange="S.company=this.value;touch();render()" style="width:150px;margin-left:6px"></label>
       <label class="tiny muted">差出人<input value="${esc(S.sender)}" placeholder="例：坂口 孝太" onchange="S.sender=this.value;touch();render()" style="width:140px;margin-left:6px"></label>
       <label class="tiny muted">役職<input value="${esc(S.title)}" placeholder="例：代表取締役" onchange="S.title=this.value;touch();render()" style="width:120px;margin-left:6px"></label>
+      <label class="tiny muted">Gmailアカウント<input value="${esc(S.gmail||'')}" placeholder="例：sakaguchi@lias.jp" onchange="S.gmail=this.value;touch();render()" style="width:180px;margin-left:6px"></label>
       <span style="flex:1"></span>
       <button class="btn s" onclick="exportJSON()">進捗を書き出す(JSON)</button>
     </div>
@@ -1567,7 +1580,7 @@ render();
     const wn=weekNo(),currentWave=wn<=3?1:wn<=8?2:3,total=REC.filter(r=>st(r.id).st!=='対象外').length,done=REC.filter(r=>st(r.id).s1&&st(r.id).st!=='対象外').length,overall=total?Math.round(done/total*100):0;
     let h=`<div class="page-intro"><div class="copy"><div class="eyebrow">ROADMAP</div><h2>12週間を、迷わない設計図に。</h2><p>設定は裏側へ。普段は「今どこか」「次に何をするか」だけ見えれば十分です。</p></div><div class="meta">Week ${wn} / 12</div></div>`;
     h+=`<div class="plan-command"><div class="plan-focus"><div class="k">CURRENT FOCUS · WAVE ${currentWave}</div><div><h3>${currentWave===1?'優先度の高い相手から、返信が取れる型を見つける。':currentWave===2?'製品名指しの層を、カテゴリ単位で攻略する。':'無回答層を仕分けて、次の母集団を作る。'}</h3><p>迷ったら、今の波で決めた目的に戻ります。</p></div></div><div class="plan-mini"><div><div class="label">12週間の進捗</div><div class="date">${overall}%</div></div><div class="progress"><i style="width:${overall}%"></i></div><div style="display:flex;justify-content:space-between;margin-top:9px;font-size:11px;color:#999"><span>${done}件着手</span><span>${total}件対象</span></div></div></div>`;
-    h+=`<details class="section-card"><summary>基本設定</summary><div class="inside"><div class="settings-grid"><div class="setting-tile"><label>開始日</label><input type="date" value="${S.start}" onchange="S.start=this.value;touch();render()"></div><div class="setting-tile"><label>1日の送信上限</label><input type="number" min="1" max="200" value="${S.cap}" onchange="S.cap=+this.value||25;touch();render()"></div><div class="setting-tile"><label>会社名</label><input value="${esc(S.company)}" onchange="S.company=this.value;touch();render()"></div><div class="setting-tile"><label>差出人</label><input value="${esc(S.sender)}" onchange="S.sender=this.value;touch();render()"></div><div class="setting-tile"><label>役職</label><input value="${esc(S.title)}" onchange="S.title=this.value;touch();render()"></div></div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px"><button class="btn s" onclick="exportJSON()">JSONを書き出す</button><button class="btn s" onclick="exportCSV()">CSVを書き出す</button><button class="btn s" onclick="pull(false).then(()=>toast('最新を取り込みました'))">同期する</button><button class="btn s" onclick="document.getElementById('seed').click()">名簿を取り込む（初回のみ）</button><input type="file" id="seed" accept=".json" style="display:none" onchange="seedLeads(this)"><button class="btn s" onclick="signOut()">ログアウト</button></div></div></details>`;
+    h+=`<details class="section-card"><summary>基本設定</summary><div class="inside"><div class="settings-grid"><div class="setting-tile"><label>開始日</label><input type="date" value="${S.start}" onchange="S.start=this.value;touch();render()"></div><div class="setting-tile"><label>1日の送信上限</label><input type="number" min="1" max="200" value="${S.cap}" onchange="S.cap=+this.value||25;touch();render()"></div><div class="setting-tile"><label>会社名</label><input value="${esc(S.company)}" onchange="S.company=this.value;touch();render()"></div><div class="setting-tile"><label>差出人</label><input value="${esc(S.sender)}" onchange="S.sender=this.value;touch();render()"></div><div class="setting-tile"><label>役職</label><input value="${esc(S.title)}" onchange="S.title=this.value;touch();render()"></div><div class="setting-tile"><label>Gmailアカウント</label><input value="${esc(S.gmail||'')}" placeholder="例：sakaguchi@lias.jp" onchange="S.gmail=this.value;touch();render()"></div></div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px"><button class="btn s" onclick="exportJSON()">JSONを書き出す</button><button class="btn s" onclick="exportCSV()">CSVを書き出す</button><button class="btn s" onclick="pull(false).then(()=>toast('最新を取り込みました'))">同期する</button><button class="btn s" onclick="document.getElementById('seed').click()">名簿を取り込む（初回のみ）</button><input type="file" id="seed" accept=".json" style="display:none" onchange="seedLeads(this)"><button class="btn s" onclick="signOut()">ログアウト</button></div></div></details>`;
     h+=`<details class="section-card"><summary>送信済みを一括反映</summary><div class="inside">
       <div class="tiny muted" style="margin-bottom:10px">メールの送信済みフォルダを開いて、宛先アドレスを1行ずつ貼り付けてください。施設名や会員IDでも照合します。「田中 &lt;xxx@yyy.jp&gt;」の形式のままでも読み取れます。<br>状況ごとに分けて、何回かに分けて貼るのがいちばん確実です。</div>
       <textarea id="bulkText" placeholder="doctor@example.jp&#10;〇〇クリニック&#10;10127" style="width:100%;min-height:150px;border:1px solid #e6e6e9;border-radius:15px;padding:13px;font:inherit;font-size:13px;line-height:1.7;resize:vertical;outline:none"></textarea>
