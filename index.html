@@ -515,6 +515,7 @@ table.t{font-size:13px;background:#fff;border-radius:20px;overflow:hidden}table.
 
 <main class="wrap">
   <section class="view on" id="v-today"></section>
+  <section class="view" id="v-week"></section>
   <section class="view" id="v-list"></section>
   <section class="view" id="v-stats"></section>
   <section class="view" id="v-review"></section>
@@ -1239,6 +1240,97 @@ function viewStats(){
   document.getElementById('v-stats').innerHTML=h;
 }
 
+/* ══ render: 週の予定 ═════════════════════════ */
+const WK_SLOTS=[['am','午前','9:00 – 12:00'],['pm','午後','13:00 – 17:00'],['ev','夕方','17:00 – 19:00']];
+const WK_KINDS={'送信':['#EDF5FF','#0867C8'],'架電':['#FFF0EF','#C6281E'],'訪問':['#E8F7EF','#16784A'],'面談':['#F1EDFF','#5F46C6'],'資料作成':['#F2F2F7','#636366']};
+const WK_DOW=['月','火','水','木','金','土','日'];
+let WB=weekMonday(TODAY);
+function wkPlan(mon){ return (S.weeks[mon]&&S.weeks[mon].plan)||{}; }
+function setBlock(key,kind){
+  const w=S.weeks[WB]=S.weeks[WB]||{p:'',d:'',c:'',a:''};
+  w.plan=w.plan||{};
+  if(kind)w.plan[key]=kind; else delete w.plan[key];
+  touch(); render();
+}
+function copyLastWeek(){
+  const src=wkPlan(addD(WB,-7));
+  if(!Object.keys(src).length){ toast('先週の予定がありません'); return; }
+  const w=S.weeks[WB]=S.weeks[WB]||{p:'',d:'',c:'',a:''};
+  w.plan=Object.assign({},src); touch(); render(); toast('先週の予定を写しました');
+}
+function dayStats(d){
+  let m=0,c=0;
+  REC.forEach(r=>st(r.id).log.forEach(l=>{ if(l.d!==d)return; if(l.k[0]==='m')m++; else if(l.k==='call')c++; }));
+  return {m,c};
+}
+function pickBlock(key){
+  const cur=wkPlan(WB)[key];
+  const wrap=document.createElement('div');
+  wrap.style.cssText='position:fixed;inset:0;z-index:120;background:rgba(0,0,0,.35);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;padding:20px';
+  const box=document.createElement('div');
+  box.className='card pad'; box.style.cssText='width:min(380px,100%)';
+  box.innerHTML='<div class="eyebrow">この枠で何をしますか？</div>';
+  const close=()=>wrap.remove();
+  Object.keys(WK_KINDS).forEach(k=>{
+    const b=document.createElement('button');
+    b.className='btn'+(k===cur?' p':'');
+    b.style.cssText='width:100%;text-align:left;margin-bottom:8px';
+    b.textContent=k;
+    b.onclick=()=>{ close(); setBlock(key,k); };
+    box.appendChild(b);
+  });
+  const e=document.createElement('button');
+  e.className='btn s'; e.style.cssText='margin-right:8px'; e.textContent='空きにする';
+  e.onclick=()=>{ close(); setBlock(key,''); };
+  box.appendChild(e);
+  const c=document.createElement('button');
+  c.className='btn s'; c.textContent='キャンセル'; c.onclick=close;
+  box.appendChild(c);
+  wrap.appendChild(box);
+  wrap.onclick=ev=>{ if(ev.target===wrap) close(); };
+  document.body.appendChild(wrap);
+}
+function viewWeek(){
+  const days=[...Array(7)].map((_,i)=>addD(WB,i)), pl=wkPlan(WB);
+  const mailDue=queue().filter(o=>['m1','m2','m3'].includes(o.n.kind)&&o.n.due<=days[6]).length;
+  const late=queue().filter(o=>o.n.due<TODAY).length;
+  const wkSent=days.reduce((a,d)=>a+dayStats(d).m,0), wkCall=days.reduce((a,d)=>a+dayStats(d).c,0);
+  const cell=(i,slot)=>{
+    const key=(i+1)+'-'+slot, k=pl[key], ev=slot==='ev'?' ev':'', we=i>4?' we':'';
+    const inner = k
+      ? '<span class="wb-b" style="background:'+WK_KINDS[k][0]+';color:'+WK_KINDS[k][1]+'">'+k+(k==='送信'?'<br><small>'+S.cap+'通まで</small>':'')+'</span>'
+      : '<span class="wb-p">＋</span>';
+    return '<div class="wb-c'+ev+we+'" onclick="pickBlock(\''+key+'\')">'+inner+'</div>';
+  };
+  let h=`<div class="page-intro"><div class="copy"><div class="eyebrow">WEEK</div><h2>誰にやるかの前に、いつやるかを置く。</h2><p>枠を押すと作業の種類を選べます。決めた枠と、その日の実績が並びます。</p></div><div class="meta">${jp(WB)} – ${jp(days[6])}</div></div>`;
+  h+=`<div class="filters" style="position:relative;top:auto;background:transparent;border:0;padding:0;backdrop-filter:none">
+    <button class="btn s" onclick="WB=addD(WB,-7);render()">← 前の週</button>
+    <button class="btn s ${WB===weekMonday(TODAY)?'p':''}" onclick="WB=weekMonday(TODAY);render()">今週</button>
+    <button class="btn s" onclick="WB=addD(WB,7);render()">次の週 →</button>
+    <button class="btn s" onclick="copyLastWeek()">先週の予定を写す</button>
+    <span style="flex:1"></span>
+    <span class="tiny muted">この週までに送るべき ${mailDue} 件${late?' ／ 期限切れ '+late+' 件':''}</span>
+  </div>`;
+  h+=`<div class="wb-scroll"><div class="wb">
+    <div class="wb-t"></div>${days.map((d,i)=>`<div class="wb-h ${d===TODAY?'now':''}"><b>${WK_DOW[i]}</b><span>${jp(d)}</span></div>`).join('')}`;
+  WK_SLOTS.forEach(([slot,label,time])=>{
+    if(slot==='ev') h+=`<div class="wb-div">17:00 — ここから夕方</div>`;
+    h+=`<div class="wb-t${slot==='ev'?' ev':''}"><b>${label}</b><span>${time}</span></div>`;
+    h+=days.map((d,i)=>cell(i,slot)).join('');
+  });
+  h+=`<div class="wb-div">実績</div><div class="wb-t"><b>やった量</b><span>記録から自動</span></div>`;
+  h+=days.map(d=>{ const x=dayStats(d);
+    return `<div class="wb-c res">${x.m||x.c?`<span class="tiny">送信 <b>${x.m}</b>${x.c?'<br>架電 <b>'+x.c+'</b>':''}</span>`:'<span class="tiny muted">—</span>'}</div>`;
+  }).join('');
+  h+=`</div></div>`;
+  h+=`<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:14px">
+    <span class="tiny muted">この週の実績：送信 <b>${wkSent}</b> 通 ／ 架電 <b>${wkCall}</b> 件</span>
+    <span style="flex:1"></span>
+    ${Object.entries(WK_KINDS).map(([k,c])=>`<span class="wb-b" style="background:${c[0]};color:${c[1]}">${k}</span>`).join('')}
+  </div>`;
+  document.getElementById('v-week').innerHTML=h;
+}
+
 /* ══ render: ふりかえり ═══════════════════════ */
 function weekSnap(mon){
   const sun=addD(mon,6);
@@ -1438,7 +1530,7 @@ async function seedLeads(el){
 }
 
 /* ══ chrome ═══════════════════════════════════ */
-const TABS=[['today','今日'],['list','名簿'],['stats','数字'],['review','ふりかえり'],['plan','計画']]
+const TABS=[['today','今日'],['week','週の予定'],['list','名簿'],['stats','数字'],['review','ふりかえり'],['plan','計画']]
   .filter(t=>t[0]!=='today'||SHOW_TODAY);
 let TAB=TABS[0][0];
 function renderTabs(){
@@ -1468,6 +1560,7 @@ function render(){
   document.querySelectorAll('.view').forEach(v=>v.classList.toggle('on',v.id==='v-'+TAB));
   renderTabs(); renderRail();
   if(TAB==='today'&&SHOW_TODAY)viewToday();
+  else if(TAB==='week')viewWeek();
   else if(TAB==='list'||TAB==='today')viewList();
   else if(TAB==='stats')viewStats();
   else if(TAB==='review')viewReview();
@@ -1500,7 +1593,7 @@ async function doLogin(){
 </script>
 
 <script id="v3-behavior">
-const ICONS={today:'<svg viewBox="0 0 24 24"><path d="M4 11.5 12 5l8 6.5v7.2a1.3 1.3 0 0 1-1.3 1.3H5.3A1.3 1.3 0 0 1 4 18.7z"/><path d="M9.5 20v-5.6h5V20"/></svg>',list:'<svg viewBox="0 0 24 24"><circle cx="5" cy="6" r="1"/><circle cx="5" cy="12" r="1"/><circle cx="5" cy="18" r="1"/><path d="M9 6h10M9 12h10M9 18h10"/></svg>',stats:'<svg viewBox="0 0 24 24"><path d="M4 19V9M10 19V5M16 19v-7M22 19V3"/></svg>',review:'<svg viewBox="0 0 24 24"><path d="M4 5h16v14H4z"/><path d="M8 9h8M8 13h5"/></svg>',plan:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="m12 8 2 4-4 2 2-6z"/></svg>'};
+const ICONS={today:'<svg viewBox="0 0 24 24"><path d="M4 11.5 12 5l8 6.5v7.2a1.3 1.3 0 0 1-1.3 1.3H5.3A1.3 1.3 0 0 1 4 18.7z"/><path d="M9.5 20v-5.6h5V20"/></svg>',list:'<svg viewBox="0 0 24 24"><circle cx="5" cy="6" r="1"/><circle cx="5" cy="12" r="1"/><circle cx="5" cy="18" r="1"/><path d="M9 6h10M9 12h10M9 18h10"/></svg>',stats:'<svg viewBox="0 0 24 24"><path d="M4 19V9M10 19V5M16 19v-7M22 19V3"/></svg>',review:'<svg viewBox="0 0 24 24"><path d="M4 5h16v14H4z"/><path d="M8 9h8M8 13h5"/></svg>',plan:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="m12 8 2 4-4 2 2-6z"/></svg>',week:'<svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3.5v3M16 3.5v3"/></svg>'};
 renderTabs=function(){
  const q=queue(),todo=q.filter(o=>o.n.due<=TODAY).length,late=q.filter(o=>o.n.due<TODAY).length;
  document.getElementById('tabs').innerHTML=TABS.map(([k,l])=>`<button class="tab ${TAB===k?'on':''}" onclick="go('${k}')">${ICONS[k]||''}<span>${l}</span>${k==='today'&&todo?`<em class="${late?'hot':''}">${todo}</em>`:''}${k==='list'&&!SHOW_TODAY?`<em>${REC.length}</em>`:''}</button>`).join('');
@@ -1571,6 +1664,29 @@ render();
 @media(max-width:980px){.advanced-filters{grid-template-columns:repeat(3,1fr) auto!important}.contact-row{grid-template-columns:1.5fr .7fr 130px}.contact-row .contact-meta:nth-child(3){display:none}.insight-hero,.analytics-grid,.plan-command{grid-template-columns:1fr}.funnel{grid-template-columns:repeat(3,1fr)}.settings-grid{grid-template-columns:repeat(3,1fr)}.wave-timeline{grid-template-columns:1fr}.journey{grid-template-columns:1fr}.journey-step:not(:last-child):after{display:none}}
 @media(max-width:640px){.page-intro{align-items:flex-start}.page-intro h2{font-size:26px}.page-intro .meta{display:none}.directory-hero{grid-template-columns:1fr auto}.search-shell{height:54px}.icon-action{width:54px;height:54px}.advanced-filters{display:flex!important;overflow-x:auto!important}.advanced-filters select{min-width:145px!important}.contact-row{grid-template-columns:minmax(0,1fr) auto;padding:13px 14px}.contact-row .contact-meta,.contact-row .contact-status{display:none}.next-pill{height:34px;padding:0 11px}.funnel{grid-template-columns:repeat(2,1fr)}.review-metrics{grid-template-columns:repeat(2,1fr)}.pdca-v4{grid-template-columns:1fr}.settings-grid{grid-template-columns:1fr 1fr}.insight-main .big{font-size:29px}.rank-row{grid-template-columns:24px minmax(0,1fr) 70px}.rank-meter{display:none}}
 </style>
+<style id="week-board-design">
+.wb-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.wb{min-width:760px;display:grid;grid-template-columns:96px repeat(7,minmax(0,1fr));gap:6px;background:#fff;border:1px solid rgba(0,0,0,.055);border-radius:24px;padding:14px;box-shadow:0 8px 28px rgba(0,0,0,.04)}
+.wb-h{padding:8px 4px;text-align:center;border-radius:12px}
+.wb-h b{display:block;font-size:13px;font-weight:760}
+.wb-h span{font-size:11px;color:#9a9aa2}
+.wb-h.now{background:#EDF5FF}.wb-h.now b,.wb-h.now span{color:#0867C8}
+.wb-t{display:flex;flex-direction:column;justify-content:center;padding:6px 8px}
+.wb-t b{font-size:13px;font-weight:700}
+.wb-t span{font-size:10.5px;color:#9a9aa2}
+.wb-c{min-height:66px;border:1px dashed #e4e4ea;border-radius:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:6px;text-align:center;transition:.14s ease}
+.wb-c:hover{border-color:#b9b9c2;background:#fafafd}
+.wb-c.we{background:#fbfbfd}
+.wb-c.ev{background:#fdfaf4;border-color:#ecdfc9}
+.wb-c.ev:hover{background:#fdf6ea}
+.wb-c.res{min-height:46px;border:0;background:#fafafa;cursor:default}
+.wb-p{font-size:15px;color:#d2d2da}
+.wb-c:hover .wb-p{color:#8e8e93}
+.wb-b{display:inline-block;font-size:12px;font-weight:700;border-radius:12px;padding:7px 11px;line-height:1.35}
+.wb-b small{font-weight:600;opacity:.75;font-size:10.5px}
+.wb-div{grid-column:1/-1;border-top:1px dashed #d4d4dc;margin:10px 0 2px;padding-top:7px;font-size:11px;color:#9a9aa2}
+@media(max-width:640px){.wb{min-width:700px;padding:10px;gap:5px;grid-template-columns:78px repeat(7,minmax(0,1fr))}.wb-c{min-height:58px}.wb-b{font-size:11px;padding:6px 8px}}
+</style>
 <script id="v4-nontop-behavior">
 (function(){
   const searchIcon='<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg>';
@@ -1622,7 +1738,7 @@ render();
     const keys=new Set([weekMonday(TODAY)]);Object.keys(S.weeks).forEach(k=>keys.add(k));for(let i=1;i<=8;i++)keys.add(addD(weekMonday(TODAY),-7*i));const list=[...keys].sort().reverse().filter(k=>k<=weekMonday(TODAY)),w=S.weeks[RW]||{p:'',d:'',c:'',a:''},sn=weekSnap(RW);
     const step=(k,no,title,help,ph,val,action='')=>`<div class="pdca-step ${action}"><div class="step-head"><div class="step-no">${no}</div><div><div class="step-title">${title}</div><div class="step-help">${help}</div></div></div><textarea placeholder="${esc(ph)}" oninput="setWeek('${k}',this.value)">${esc(val)}</textarea></div>`;
     let h=`<div class="page-intro"><div class="copy"><div class="eyebrow">WEEKLY REVIEW</div><h2>振り返りは、4つ書くのではなく1つ決める。</h2><p>数字を見て、最後の「来週変える1つ」まで迷わず進めます。</p></div></div>`;
-    h+=`<div class="review-head-card"><div><div class="week">${RW.replace(/-/g,'/')} の週</div><div class="desc">${RW===weekMonday(TODAY)?'今週 · 途中でも書き足せます':'保存済みの週を振り返っています'}</div></div><select onchange="RW=this.value;render()">${list.map(k=>`<option value="${k}"${k===RW?' selected':''}>${k.replace(/-/g,'/')} ${k===weekMonday(TODAY)?'（今週）':''}${S.weeks[k]?' ✓':''}</option>`).join('')}</select></div>`;
+    h+=`<div class="review-head-card"><div><div class="week">${RW.replace(/-/g,'/')} の週</div><div class="desc">${RW===weekMonday(TODAY)?'今週 · 途中でも書き足せます':'保存済みの週を振り返っています'}</div></div><select onchange="RW=this.value;render()">${list.map(k=>`<option value="${k}"${k===RW?' selected':''}>${k.replace(/-/g,'/')} ${k===weekMonday(TODAY)?'（今週）':''}${(S.weeks[k]&&(S.weeks[k].p||S.weeks[k].d||S.weeks[k].c||S.weeks[k].a))?' ✓':''}</option>`).join('')}</select></div>`;
     h+=`<div class="review-metrics"><div class="review-metric"><div class="n">${sn.m}</div><div class="l">送信</div></div><div class="review-metric"><div class="n">${sn.rp}</div><div class="l">返信 ${sn.m?Math.round(sn.rp/sn.m*100)+'%':'—'}</div></div><div class="review-metric"><div class="n">${sn.cl}</div><div class="l">電話</div></div><div class="review-metric"><div class="n">${sn.mt}</div><div class="l">商談</div></div><div class="review-metric"><div class="n">${sn.ng}</div><div class="l">不要連絡</div></div></div>`;
     h+=`<div class="pdca-v4">${step('p','01','今週の狙い','PLAN · 何を検証する週だったか','例：品質重視7件にEテンプレ。返信率を見る',w.p)}${step('d','02','実際にやったこと','DO · 事実だけを書く','送った数、電話した数、想定とずれた点',w.d)}${step('c','03','数字から分かったこと','CHECK · 感想ではなく数字から','母数が少ないうちは断定しない',w.c)}${step('a','04','来週変える1つ','ACT · ここが最重要','件名を変える／順番を変える／訪問日を先に押さえる',w.a,'action')}</div>`;
     const past=Object.keys(S.weeks).filter(k=>k!==RW&&(S.weeks[k].p||S.weeks[k].a)).sort().reverse();
