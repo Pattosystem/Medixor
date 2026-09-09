@@ -1026,7 +1026,8 @@ function copyMail(el){ const o=mbox(el); copy('件名：'+o.sj.value+'\n\n'+o.bd
 /* Gmail の新規作成画面を、宛先・件名・本文が入った状態で開く */
 function openGmail(el){
   const o=mbox(el), rec=BYID[o.id], acct=(S.gmail||'').trim();
-  const head='https://mail.google.com/mail/?view=cm&fs=1'
+  /* アカウント指定は authuser より u/<アドレス>/ のほうが確実に効く */
+  const head='https://mail.google.com/mail/'+(acct?'u/'+encodeURIComponent(acct)+'/':'')+'?view=cm&fs=1'
     +(acct?'&authuser='+encodeURIComponent(acct):'')
     +'&to='+encodeURIComponent(rec.mail||'')
     +'&su='+encodeURIComponent(o.sj.value);
