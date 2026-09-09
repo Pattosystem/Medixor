@@ -911,8 +911,7 @@ function cardHTML(rec,n,focus){
       <input class="subj" data-rid="${rec.id}" data-w="${which}" value="${esc(m.subj)}" oninput="draft(this)">
       <textarea class="bodyta" oninput="draft(this)">${esc(m.body)}</textarea>
       <div class="mailbar" style="border-top:1px solid var(--line);border-bottom:0">
-        <button class="btn s p" onclick="openGmail(this)">Gmailで開く</button>
-        ${gmailPicker(rec)}
+        <button class="btn s p" onclick="openGmail(this)">Gmailで送信</button>
         <button class="btn s" onclick="copyMail(this)">本文をコピー</button>
         <button class="btn s" onclick="openMail(this)">メーラーで開く</button>
         <button class="btn s" onclick="resetDraft(this)">下書きを戻す</button>
@@ -1024,33 +1023,70 @@ function jumpBlank(el){
   t.focus(); t.setSelectionRange(i,j<0?i+1:j+1);
 }
 function copyMail(el){ const o=mbox(el); copy('件名：'+o.sj.value+'\n\n'+o.bd.value); }
-/* 登録済みのGmailアカウント一覧（カンマ・改行区切り） */
+/* ══ Gmail アカウント ═════════════════════════ */
 function gmailAccounts(){ return String(S.gmail||'').split(/[\s,、;]+/).map(v=>v.trim()).filter(Boolean); }
-/* この相手にどのアカウントを使うか。未指定なら先頭 */
+/* この相手に前回使ったアカウント。無ければ既定（先頭） */
 function gmailFrom(id){ const a=gmailAccounts(), f=st(id).from; return (f&&a.includes(f))?f:(a[0]||''); }
-function setFrom(id,v){ st(id).from=v; touch(id); toast('送信元を '+v+' にしました'); }
-function gmailPicker(rec){
+function setFrom(id,v){ st(id).from=v; touch(id); }
+function addAccount(){
+  const el=document.getElementById('newAcct'); if(!el)return;
+  const v=el.value.trim(); if(!v)return;
+  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v)){ toast('メールアドレスの形式で入力してください'); return; }
   const a=gmailAccounts();
-  if(!a.length) return '<span class="tiny" style="color:var(--hot-t)">送信元 未設定</span>';
+  if(a.includes(v)){ toast('すでに登録されています'); return; }
+  a.push(v); S.gmail=a.join(', '); touch(); render(); reopenSettings();
+  toast(v+' を追加しました');
+}
+function delAccount(i){
+  const a=gmailAccounts(); if(i<0||i>=a.length)return;
+  if(!confirm(a[i]+' を送信元から削除しますか？'))return;
+  a.splice(i,1); S.gmail=a.join(', '); touch(); render(); reopenSettings();
+}
+function reopenSettings(){ const d=document.querySelector('#v-plan details.section-card'); if(d)d.open=true; }
+
+/* 送信元を選ぶダイアログ。選ばれたら cb(アドレス) を呼ぶ */
+function pickAccount(rec,subj,cb){
+  const a=gmailAccounts();
+  if(!a.length){ toast('計画タブの基本設定でGmailアカウントを追加してください'); return; }
   const cur=gmailFrom(rec.id);
-  return '<select class="btn s fromsel" title="送信元アカウント" onchange="setFrom(\''+rec.id+'\',this.value)">'
-    +a.map(v=>'<option'+(v===cur?' selected':'')+'>'+esc(v)+'</option>').join('')+'</select>';
+  const wrap=document.createElement('div');
+  wrap.style.cssText='position:fixed;inset:0;z-index:120;background:rgba(0,0,0,.35);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;padding:20px';
+  const box=document.createElement('div');
+  box.className='card pad';
+  box.style.cssText='width:min(440px,100%);max-height:82vh;overflow:auto';
+  box.innerHTML='<div class="eyebrow">どのアカウントで送りますか？</div>'
+    +'<div class="quote" style="margin-bottom:14px"><b>宛先</b>'+esc(rec.name)+'　'+esc(rec.mail||'（メール未登録）')
+    +'<div style="margin-top:6px"><b>件名</b>'+esc(subj)+'</div></div>';
+  const close=()=>wrap.remove();
+  a.forEach(v=>{
+    const b=document.createElement('button');
+    b.className='btn'+(v===cur?' p':'');
+    b.style.cssText='width:100%;text-align:left;margin-bottom:8px';
+    b.textContent=v+(v===cur?'　（前回・既定）':'');
+    b.onclick=()=>{ close(); cb(v); };
+    box.appendChild(b);
+  });
+  const c=document.createElement('button');
+  c.className='btn s'; c.textContent='キャンセル'; c.onclick=close;
+  box.appendChild(c);
+  wrap.appendChild(box);
+  wrap.onclick=e=>{ if(e.target===wrap) close(); };
+  document.body.appendChild(wrap);
 }
 /* Gmail の新規作成画面を、宛先・件名・本文が入った状態で開く */
 function openGmail(el){
-  const o=mbox(el), rec=BYID[o.id];
-  const sel=o.b.querySelector('.fromsel');
-  const acct=(sel?sel.value:gmailFrom(o.id)).trim();
-  if(!acct){ toast('計画タブの基本設定で「Gmailアカウント」を先に指定してください'); return; }
-  if(!confirm('Gmailの作成画面を開きます。\n\n送信元：'+acct+'\n宛先：'+(rec.mail||'（未登録）')+'\n件名：'+o.sj.value+'\n\n送信元が違う場合は、基本設定を直してからやり直してください。')) return;
-  /* アカウント指定は authuser より u/<アドレス>/ のほうが確実に効く */
-  const head='https://mail.google.com/mail/'+(acct?'u/'+encodeURIComponent(acct)+'/':'')+'?view=cm&fs=1'
-    +(acct?'&authuser='+encodeURIComponent(acct):'')
-    +'&to='+encodeURIComponent(rec.mail||'')
-    +'&su='+encodeURIComponent(o.sj.value);
-  const full=head+'&body='+encodeURIComponent(o.bd.value);
-  if(full.length<=7000){ window.open(full,'_blank','noopener'); }
-  else{ copy(o.bd.value); window.open(head,'_blank','noopener'); toast('本文が長いためコピーしました。Gmailで貼り付けてください'); }
+  const o=mbox(el), rec=BYID[o.id], subj=o.sj.value, body=o.bd.value;
+  pickAccount(rec,subj,acct=>{
+    setFrom(rec.id,acct);
+    /* アカウント指定は authuser より u/<アドレス>/ のほうが確実に効く */
+    const head='https://mail.google.com/mail/u/'+encodeURIComponent(acct)+'/?view=cm&fs=1'
+      +'&authuser='+encodeURIComponent(acct)
+      +'&to='+encodeURIComponent(rec.mail||'')
+      +'&su='+encodeURIComponent(subj);
+    const full=head+'&body='+encodeURIComponent(body);
+    if(full.length<=7000){ window.open(full,'_blank','noopener'); }
+    else{ copy(body); window.open(head,'_blank','noopener'); toast('本文が長いためコピーしました。Gmailで貼り付けてください'); }
+  });
 }
 function openMail(el){ const o=mbox(el); location.href='mailto:'+encodeURIComponent(BYID[o.id].mail)+'?subject='+encodeURIComponent(o.sj.value)+'&body='+encodeURIComponent(o.bd.value); }
 
@@ -1598,7 +1634,10 @@ render();
     const wn=weekNo(),currentWave=wn<=3?1:wn<=8?2:3,total=REC.filter(r=>st(r.id).st!=='対象外').length,done=REC.filter(r=>st(r.id).s1&&st(r.id).st!=='対象外').length,overall=total?Math.round(done/total*100):0;
     let h=`<div class="page-intro"><div class="copy"><div class="eyebrow">ROADMAP</div><h2>12週間を、迷わない設計図に。</h2><p>設定は裏側へ。普段は「今どこか」「次に何をするか」だけ見えれば十分です。</p></div><div class="meta">Week ${wn} / 12</div></div>`;
     h+=`<div class="plan-command"><div class="plan-focus"><div class="k">CURRENT FOCUS · WAVE ${currentWave}</div><div><h3>${currentWave===1?'優先度の高い相手から、返信が取れる型を見つける。':currentWave===2?'製品名指しの層を、カテゴリ単位で攻略する。':'無回答層を仕分けて、次の母集団を作る。'}</h3><p>迷ったら、今の波で決めた目的に戻ります。</p></div></div><div class="plan-mini"><div><div class="label">12週間の進捗</div><div class="date">${overall}%</div></div><div class="progress"><i style="width:${overall}%"></i></div><div style="display:flex;justify-content:space-between;margin-top:9px;font-size:11px;color:#999"><span>${done}件着手</span><span>${total}件対象</span></div></div></div>`;
-    h+=`<details class="section-card"><summary>基本設定</summary><div class="inside"><div class="settings-grid"><div class="setting-tile"><label>開始日</label><input type="date" value="${S.start}" onchange="S.start=this.value;touch();render()"></div><div class="setting-tile"><label>1日の送信上限</label><input type="number" min="1" max="200" value="${S.cap}" onchange="S.cap=+this.value||25;touch();render()"></div><div class="setting-tile"><label>会社名</label><input value="${esc(S.company)}" onchange="S.company=this.value;touch();render()"></div><div class="setting-tile"><label>差出人</label><input value="${esc(S.sender)}" onchange="S.sender=this.value;touch();render()"></div><div class="setting-tile"><label>役職</label><input value="${esc(S.title)}" onchange="S.title=this.value;touch();render()"></div><div class="setting-tile"><label>Gmailアカウント（複数はカンマ区切り）</label><input value="${esc(S.gmail||'')}" placeholder="例：a@lias.jp, b@lias.jp" onchange="S.gmail=this.value;touch();render()"></div></div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px"><button class="btn s" onclick="exportJSON()">JSONを書き出す</button><button class="btn s" onclick="exportCSV()">CSVを書き出す</button><button class="btn s" onclick="pull(false).then(()=>toast('最新を取り込みました'))">同期する</button><button class="btn s" onclick="document.getElementById('seed').click()">名簿を取り込む（初回のみ）</button><input type="file" id="seed" accept=".json" style="display:none" onchange="seedLeads(this)"><button class="btn s" onclick="signOut()">ログアウト</button></div></div></details>`;
+    h+=`<details class="section-card"><summary>基本設定</summary><div class="inside"><div class="settings-grid"><div class="setting-tile"><label>開始日</label><input type="date" value="${S.start}" onchange="S.start=this.value;touch();render()"></div><div class="setting-tile"><label>1日の送信上限</label><input type="number" min="1" max="200" value="${S.cap}" onchange="S.cap=+this.value||25;touch();render()"></div><div class="setting-tile"><label>会社名</label><input value="${esc(S.company)}" onchange="S.company=this.value;touch();render()"></div><div class="setting-tile"><label>差出人</label><input value="${esc(S.sender)}" onchange="S.sender=this.value;touch();render()"></div><div class="setting-tile"><label>役職</label><input value="${esc(S.title)}" onchange="S.title=this.value;touch();render()"></div></div>
+      <div style="margin-top:16px"><div class="tiny muted" style="margin-bottom:8px">Gmailアカウント　—　送信のたびに、ここに登録したものから選びます</div>
+      ${gmailAccounts().map((v,i)=>`<div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid rgba(0,0,0,.055);border-radius:14px;background:#fff;margin-bottom:7px"><span class="chip${i===0?' c1':''}">${i===0?'既定':i+1}</span><span style="flex:1;font-size:13px;min-width:0;overflow:hidden;text-overflow:ellipsis">${esc(v)}</span><button class="btn s danger" onclick="delAccount(${i})">削除</button></div>`).join('')||'<div class="tiny" style="color:var(--hot-t);margin-bottom:8px">まだ登録がありません。1つ以上追加してください。</div>'}
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px"><input id="newAcct" placeholder="例：sakaguchi@lias.jp" style="flex:1;min-width:220px;height:40px;border:1px solid #e6e6e9;border-radius:13px;padding:0 12px;background:#fff;outline:none"><button class="btn s" onclick="addAccount()">追加する</button></div></div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px"><button class="btn s" onclick="exportJSON()">JSONを書き出す</button><button class="btn s" onclick="exportCSV()">CSVを書き出す</button><button class="btn s" onclick="pull(false).then(()=>toast('最新を取り込みました'))">同期する</button><button class="btn s" onclick="document.getElementById('seed').click()">名簿を取り込む（初回のみ）</button><input type="file" id="seed" accept=".json" style="display:none" onchange="seedLeads(this)"><button class="btn s" onclick="signOut()">ログアウト</button></div></div></details>`;
     h+=`<details class="section-card"><summary>送信済みを一括反映</summary><div class="inside">
       <div class="tiny muted" style="margin-bottom:10px">メールの送信済みフォルダを開いて、宛先アドレスを1行ずつ貼り付けてください。施設名や会員IDでも照合します。「田中 &lt;xxx@yyy.jp&gt;」の形式のままでも読み取れます。<br>状況ごとに分けて、何回かに分けて貼るのがいちばん確実です。</div>
       <textarea id="bulkText" placeholder="doctor@example.jp&#10;〇〇クリニック&#10;10127" style="width:100%;min-height:150px;border:1px solid #e6e6e9;border-radius:15px;padding:13px;font:inherit;font-size:13px;line-height:1.7;resize:vertical;outline:none"></textarea>
