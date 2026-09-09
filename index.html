@@ -911,7 +911,7 @@ function cardHTML(rec,n,focus){
       <input class="subj" data-rid="${rec.id}" data-w="${which}" value="${esc(m.subj)}" oninput="draft(this)">
       <textarea class="bodyta" oninput="draft(this)">${esc(m.body)}</textarea>
       <div class="mailbar" style="border-top:1px solid var(--line);border-bottom:0">
-        <button class="btn s p" onclick="openGmail(this)">Gmailで開く</button>
+        <button class="btn s p" onclick="openGmail(this)">Gmailで開く${S.gmail?'（'+esc(S.gmail)+'）':'（送信元 未設定）'}</button>
         <button class="btn s" onclick="copyMail(this)">本文をコピー</button>
         <button class="btn s" onclick="openMail(this)">メーラーで開く</button>
         <button class="btn s" onclick="resetDraft(this)">下書きを戻す</button>
@@ -1026,6 +1026,8 @@ function copyMail(el){ const o=mbox(el); copy('件名：'+o.sj.value+'\n\n'+o.bd
 /* Gmail の新規作成画面を、宛先・件名・本文が入った状態で開く */
 function openGmail(el){
   const o=mbox(el), rec=BYID[o.id], acct=(S.gmail||'').trim();
+  if(!acct){ toast('計画タブの基本設定で「Gmailアカウント」を先に指定してください'); return; }
+  if(!confirm('Gmailの作成画面を開きます。\n\n送信元：'+acct+'\n宛先：'+(rec.mail||'（未登録）')+'\n件名：'+o.sj.value+'\n\n送信元が違う場合は、基本設定を直してからやり直してください。')) return;
   /* アカウント指定は authuser より u/<アドレス>/ のほうが確実に効く */
   const head='https://mail.google.com/mail/'+(acct?'u/'+encodeURIComponent(acct)+'/':'')+'?view=cm&fs=1'
     +(acct?'&authuser='+encodeURIComponent(acct):'')
