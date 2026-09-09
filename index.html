@@ -1718,6 +1718,168 @@ async function seedLeads(el){
   }catch(e){ setSaved('取り込みに失敗しました：'+e.message,1); }
 }
 
+
+/* ══ CSVで名簿を追加する（既存は触らない） ═══ */
+function parseCSV(text){
+  text=String(text).replace(/^\uFEFF/,'');
+  const rows=[]; let row=[], cur='', q=false;
+  for(let i=0;i<text.length;i++){
+    const c=text[i];
+    if(q){ if(c==='"'){ if(text[i+1]==='"'){cur+='"';i++;} else q=false; } else cur+=c; }
+    else if(c==='"')q=true;
+    else if(c===','){row.push(cur);cur='';}
+    else if(c==='\n'){row.push(cur);cur='';rows.push(row);row=[];}
+    else if(c!=='\r')cur+=c;
+  }
+  if(cur!==''||row.length){row.push(cur);rows.push(row);}
+  return rows.filter(r=>r.some(v=>String(v).trim()!==''));
+}
+const CSVMAP={
+  id:['会員id','会員番号','顧客id','id','no','番号'],
+  name:['施設名','医院名','クリニック名','会社名','会員名','名称'],
+  pref:['都道府県'],city:['市区町村','住所'],
+  rep:['代表者','代表者名','氏名','お名前','名前'],pic:['担当者','担当者名'],
+  mail:['メールアドレス','メール','email','e-mail','mail'],
+  tel:['電話番号','電話','tel'],
+  reg:['登録日','会員登録日','作成日','登録日時'],
+  why:['登録理由','ご登録理由','理由'],kw:['検索キーワード','キーワード'],
+  want:['期待している点','期待'],info:['希望する情報','希望情報'],
+  seg:['セグメント'],cat:['製品カテゴリ','カテゴリ'],biz:['業態'],tpl:['テンプレ'],blk:['地域ブロック','地域']
+};
+const cnorm=v=>String(v||'').toLowerCase().replace(/[\s\u3000（）()【】\[\]]/g,'');
+const PREF_BLK={'北海道':'北海道','青森':'東北','岩手':'東北','宮城':'東北','秋田':'東北','山形':'東北','福島':'東北',
+ '東京':'関東','神奈川':'関東','埼玉':'関東','千葉':'関東','茨城':'関東','栃木':'関東','群馬':'関東','山梨':'関東',
+ '愛知':'中部','静岡':'中部','岐阜':'中部','三重':'中部','新潟':'中部','富山':'中部','石川':'中部','福井':'中部','長野':'中部',
+ '大阪':'関西','京都':'関西','兵庫':'関西','奈良':'関西','滋賀':'関西','和歌山':'関西',
+ '鳥取':'中国','島根':'中国','岡山':'中国','広島':'中国','山口':'中国',
+ '徳島':'四国','香川':'四国','愛媛':'四国','高知':'四国',
+ '福岡':'九州沖縄','佐賀':'九州沖縄','長崎':'九州沖縄','熊本':'九州沖縄','大分':'九州沖縄','宮崎':'九州沖縄','鹿児島':'九州沖縄','沖縄':'九州沖縄'};
+function guessBlk(pref){ for(const k in PREF_BLK) if(String(pref||'').indexOf(k)>=0) return PREF_BLK[k]; return '関東'; }
+function guessBiz(name,why){
+  const t=String(name||'')+' '+String(why||'');
+  if(/歯科|デンタル|dental/i.test(t)) return '歯科';
+  if(/動物|ペット|アニマル/.test(t)) return 'その他（動物病院）';
+  if(/株式会社|合同会社|一般社団|有限会社|個人事業/.test(t)) return '法人・非医療（要確認）';
+  if(/皮膚科|ひふ科|皮フ科/.test(t)) return '皮膚科';
+  if(/美容|ビューティ|エステティック/.test(t)) return '美容クリニック';
+  if(/クリニック|医院|診療所|病院|clinic/i.test(t)) return 'クリニック（診療科不明）';
+  return 'その他';
+}
+function guessCat(t){
+  t=String(t||'');
+  if(/ボツリヌス|ボトックス|ボツラックス|イノトックス|コアトックス|ナボタ|botulax|coretox|innotox|nabota/i.test(t)) return 'ボツリヌス系';
+  if(/リジュラン|プルリアル|ジャルプロ|ブナジュ|リトゥオ|スキンブースター|肌育|rejuran|profhilo|jalupro/i.test(t)) return 'スキンブースター・肌育';
+  if(/脂肪溶解|カベリン|fatx|レモンボトル/i.test(t)) return '脂肪溶解';
+  if(/ピーリング|ピール|prx|マッサージピール|ミラノリピール/i.test(t)) return 'ピーリング';
+  if(/ヒアルロン|フィラー|ニューラミス|オリディア|プロファイロ|filler/i.test(t)) return 'フィラー・HA';
+  if(/針|ニードル|カニューレ|シリンジ|消耗品/.test(t)) return '針・消耗品';
+  if(/グルタチオン|ヒアルロニダーゼ|リドカイン|点滴|麻酔|白玉/.test(t)) return '注射・点滴・麻酔';
+  if(/スレッド|糸リフト|thread/i.test(t)) return 'スレッド・糸';
+  if(/機器|デバイス|レーザー|ハイフ|hifu|マシン/i.test(t)) return '機器・デバイス';
+  return '未特定';
+}
+function guessSeg(why,kw){
+  const t=String(why||'')+' '+String(kw||'');
+  if(!t.trim()) return '⑥ 無回答';
+  if(/紹介|勧め|すすめ|聞い|知人|友人|同僚|先生から/.test(t)) return '① 紹介経由';
+  if(/正規品|コールドチェーン|品質|信頼|密封|本物|偽物|真贋|温度/.test(t)) return '② 品質・信頼重視';
+  if(/比較|相見積|見積り比較|乗り換え|高い|安く|まとめ|一括|他社/.test(t)) return '③ 乗り換え・比較';
+  if(/開業|新規|立ち上げ|メニュー|導入したい|始めた/.test(t)) return '④ 開業・新規参入';
+  if(guessCat(t)!=='未特定'||String(kw||'').trim()) return '⑤ 製品名指し・購入検討';
+  return '⑥ 無回答';
+}
+function guessTpl(seg,biz){
+  const d=biz==='歯科';
+  if(seg[0]==='①')return 'A'; if(seg[0]==='②')return 'E'; if(seg[0]==='③')return 'C';
+  if(seg[0]==='④')return d?'F-歯科':'F'; if(seg[0]==='⑤')return d?'B-歯科':'B';
+  return 'D';
+}
+function normDate(v){
+  v=String(v||'').trim(); if(!v)return TODAY;
+  const m=v.match(/(\d{4})[-\/年]\s*(\d{1,2})[-\/月]\s*(\d{1,2})/);
+  return m?m[1]+'-'+pad(+m[2])+'-'+pad(+m[3]):TODAY;
+}
+let CSVNEW=[], CSVSKIP=0, CSVBAD=0;
+function csvPick(el){
+  const f=el.files[0]; el.value=''; if(!f)return;
+  const rd=new FileReader();
+  rd.onload=()=>{ try{ csvAnalyze(rd.result); }catch(e){ document.getElementById('csvOut').innerHTML='<div class="tiny" style="color:var(--hot-t)">読み込めませんでした：'+esc(e.message)+'</div>'; } };
+  rd.readAsText(f,'UTF-8');
+}
+function csvAnalyze(text){
+  const rows=parseCSV(text);
+  const out=document.getElementById('csvOut'); if(!out)return;
+  if(rows.length<2){ out.innerHTML='<div class="tiny" style="color:var(--hot-t)">中身が空のようです。</div>'; return; }
+  const head=rows[0].map(cnorm), col={};
+  for(const k in CSVMAP){
+    for(const a of CSVMAP[k]){
+      const i=head.findIndex(h=>h===cnorm(a)||h.indexOf(cnorm(a))>=0);
+      if(i>=0){ col[k]=i; break; }
+    }
+  }
+  if(col.id===undefined&&col.mail===undefined){
+    out.innerHTML='<div class="tiny" style="color:var(--hot-t)">「会員ID」か「メールアドレス」の列が見つかりません。見出し行のある CSV を選んでください。</div>'; return;
+  }
+  const g=(r,k)=>col[k]===undefined?'':String(r[col[k]]||'').trim();
+  const haveId=new Set(REC.map(r=>String(r.id)));
+  const haveMail=new Set(REC.map(r=>String(r.mail||'').toLowerCase()).filter(Boolean));
+  const seen=new Set();
+  CSVNEW=[]; CSVSKIP=0; CSVBAD=0;
+  rows.slice(1).forEach(r=>{
+    const id=g(r,'id'), mail=g(r,'mail'), name=g(r,'name');
+    if(!name&&!mail){ CSVBAD++; return; }
+    const key=id||mail.toLowerCase();
+    if(!key){ CSVBAD++; return; }
+    if(seen.has(key)){ CSVSKIP++; return; }
+    seen.add(key);
+    if((id&&haveId.has(id))||(mail&&haveMail.has(mail.toLowerCase()))){ CSVSKIP++; return; }
+    const why=g(r,'why'), kw=g(r,'kw'), pref=g(r,'pref');
+    const biz=g(r,'biz')||guessBiz(name,why);
+    const seg=g(r,'seg')||guessSeg(why,kw);
+    const cat=g(r,'cat')||guessCat(kw+' '+why);
+    const tpl=g(r,'tpl')||guessTpl(seg,biz);
+    const wave=seg[0]==='⑤'?2:(seg[0]==='⑥'?3:1);
+    const dup=REC.some(x=>x.name&&x.name===name)||REC.some(x=>x.tel&&String(x.tel).replace(/\D/g,'')===g(r,'tel').replace(/\D/g,'')&&g(r,'tel').replace(/\D/g,'').length>=9);
+    CSVNEW.push({id:id||('M'+key.replace(/[^A-Za-z0-9]/g,'').slice(0,14)),name:name,pref:pref,city:g(r,'city'),
+      blk:g(r,'blk')||guessBlk(pref),seg:seg,cat:cat,biz:biz,tpl:tpl,wave:wave,
+      rep:g(r,'rep'),pic:g(r,'pic'),mail:mail,tel:g(r,'tel'),reg:normDate(g(r,'reg')),
+      why:why,kw:kw,want:g(r,'want'),info:g(r,'info'),pri:wave,dup:dup});
+  });
+  let h='<div class="quote" style="margin-bottom:10px"><b>読み取り結果</b>'
+    +'新しく追加できるのは <b>'+CSVNEW.length+'</b> 件です。'
+    +'すでに名簿にある '+CSVSKIP+' 件は飛ばします。'
+    +(CSVBAD?'　施設名もメールも無い '+CSVBAD+' 行は読み飛ばしました。':'')
+    +'<div style="margin-top:6px">既存の '+REC.length+' 件と、その進捗・メモ・履歴には一切触れません。</div></div>';
+  if(CSVNEW.length){
+    h+='<div style="border:1px solid rgba(0,0,0,.055);border-radius:14px;overflow:auto;max-height:280px;background:#fff;margin-bottom:10px">'
+      +CSVNEW.slice(0,200).map(r=>'<div class="blk-item"><div class="blk-head">'
+        +'<span style="flex:1;min-width:0"><b style="font-size:13px">'+esc(r.name||'（名称なし）')+'</b>'+(r.dup?' <span class="chip r">重複あり</span>':'')
+        +'<div class="tiny muted">'+esc(r.pref)+esc(r.city)+'　'+esc(r.mail)+'</div>'
+        +'<div class="tiny muted">'+esc(r.seg)+'　'+esc(r.cat)+'　'+esc(r.biz)+'　テンプレ '+esc(r.tpl)+'　第'+r.wave+'波</div></span></div></div>').join('')
+      +(CSVNEW.length>200?'<div class="tiny muted" style="padding:10px 13px">ほか '+(CSVNEW.length-200)+' 件</div>':'')+'</div>'
+      +'<div class="tiny muted" style="margin-bottom:10px">セグメント・カテゴリ・業態・テンプレは、登録理由と検索キーワードから機械的に判定しています。CSVにその列があればそちらを使います。</div>'
+      +'<button class="btn p" onclick="csvCommit()">この '+CSVNEW.length+' 件を名簿に追加する</button>';
+  }
+  out.innerHTML=h;
+}
+async function csvCommit(){
+  if(!CSVNEW.length)return;
+  const out=document.getElementById('csvOut');
+  try{
+    for(let i=0;i<CSVNEW.length;i+=50){
+      const chunk=CSVNEW.slice(i,i+50).map(r=>{ const {id,...rest}=r; return {id:String(id),data:rest}; });
+      await upsert('medixor_lead',chunk);
+      if(out)out.innerHTML='<div class="tiny">追加中… '+Math.min(i+50,CSVNEW.length)+' / '+CSVNEW.length+'</div>';
+    }
+    const n=CSVNEW.length; CSVNEW=[];
+    lastSync=null; await pull(true);
+    if(out)out.innerHTML='<div class="quote"><b>完了</b>'+n+' 件を追加しました。名簿は '+REC.length+' 件になりました。</div>';
+    toast(n+'件を追加しました');
+  }catch(e){
+    if(out)out.innerHTML='<div class="tiny" style="color:var(--hot-t)">追加できませんでした：'+esc(e.message)+'</div>';
+  }
+}
+
 /* ══ chrome ═══════════════════════════════════ */
 const TABS=[['today','今日'],['week','週の予定'],['list','名簿'],['stats','数字'],['review','ふりかえり'],['plan','計画']]
   .filter(t=>t[0]!=='today'||SHOW_TODAY);
@@ -1977,6 +2139,15 @@ render();
         <button class="btn s p" onclick="bulkApply()">反映する</button>
       </div>
       <div id="bulkResult" class="tiny" style="margin-top:10px"></div>
+    </div></details>`;
+    h+=`<details class="section-card"><summary>名簿をCSVで追加する</summary><div class="inside">
+      <div class="tiny muted" style="margin-bottom:10px">会員が増えたときに使います。<b>すでに名簿にある相手は飛ばして、新しい分だけを足します。</b>既存の進捗・メモ・送信履歴は書き換えません。<br>見出し行のあるCSVを選んでください。会員ID（またはメールアドレス）と施設名があれば読み取れます。</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
+        <button class="btn s p" onclick="document.getElementById('csvFile').click()">CSVを選ぶ</button>
+        <input type="file" id="csvFile" accept=".csv,text/csv" style="display:none" onchange="csvPick(this)">
+        <span class="tiny muted">現在の名簿 ${REC.length} 件</span>
+      </div>
+      <div id="csvOut"></div>
     </div></details>`;
     h+=`<div class="section-head" style="margin-top:22px"><div><span>WAVES</span><h3>3つの波</h3></div><span>今は第${currentWave}波</span></div><div class="wave-timeline">`;
     const waves=[[1,'優先度1','紹介・品質重視・乗り換え・開業'],[2,'製品名指し','カテゴリごとに攻略'],[3,'無回答','反応を見て仕分け']];
