@@ -770,6 +770,53 @@ function snooze(id,days){ st(id).snooze=addD(TODAY,days); logIt(id,'hold',days+'
 function toTop(){ if(!SHOW_TODAY||TAB!=='today'||document.getElementById('drawer').classList.contains('on'))return;
   const el=document.getElementById('focusSlot'); if(el)el.scrollIntoView({block:'start',behavior:'smooth'}); }
 
+/* ══ 送信済みの一括反映 ═══════════════════════ */
+const bnorm=s=>String(s||'').toLowerCase().replace(/[\s\u3000]/g,'');
+function leadIndex(){
+  const ix={};
+  REC.forEach(r=>{
+    if(r.mail)ix[bnorm(r.mail)]=r.id;
+    if(r.name)ix[bnorm(r.name)]=r.id;
+    ix[bnorm(r.id)]=r.id;
+    const t=String(r.tel||'').replace(/\D/g,''); if(t.length>=9)ix[t]=r.id;
+  });
+  return ix;
+}
+/* 過去の日付でも記録できるよう、setStatus とは別に用意している */
+function markDone(id,to,day){
+  const x=st(id);
+  const put=(k,n)=>{ if(!x.log.some(l=>l.d===day&&l.k===k)) x.log.push({d:day,k:k,n:n||'一括反映'}); };
+  if(!x.s1)x.s1=day;
+  if(to==='2通目送信'){ if(!x.s2)x.s2=day; put('m2'); }
+  else if(to==='3通目送信'){ if(!x.s3)x.s3=day; put('m3'); }
+  else if(to==='返信あり'){ put('reply'); }
+  else if(to==='電話済'){ if(!x.call)x.call=day; put('call'); }
+  else if(to==='1通目送信'){ put('m1'); }
+  else { put('st',to+'／一括反映'); }
+  x.st=to; x.last=day; x.snooze='';
+  touch(id);
+}
+function bulkApply(){
+  const ta=document.getElementById('bulkText'); if(!ta)return;
+  const to=document.getElementById('bulkStatus').value;
+  const day=document.getElementById('bulkDate').value||TODAY;
+  const ix=leadIndex();
+  const hit=new Set(), miss=[];
+  ta.value.split(/\r?\n/).map(v=>v.trim()).filter(Boolean).forEach(line=>{
+    const em=line.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/);
+    let id = em ? ix[bnorm(em[0])] : undefined;
+    if(!id) id = ix[bnorm(line)];
+    if(!id){ const t=line.replace(/\D/g,''); if(t.length>=9) id=ix[t]; }
+    if(id) hit.add(id); else miss.push(line);
+  });
+  hit.forEach(id=>markDone(id,to,day));
+  const el=document.getElementById('bulkResult');
+  if(el) el.innerHTML='<b>'+hit.size+'件</b>を「'+esc(to)+'」にしました（'+jp(day)+'）。'
+    +(miss.length?'<div style="margin-top:6px;color:var(--hot-t)">名簿に見つからなかった行が '+miss.length+' 件あります。誤字か、名簿に無い相手です。<br>'+miss.slice(0,20).map(esc).join('<br>')+(miss.length>20?'<br>ほか '+(miss.length-20)+' 件':'')+'</div>':'')
+    +'<div style="margin-top:6px" class="muted">名簿タブの「対応済み」で一覧を確認できます。</div>';
+  if(hit.size)toast(hit.size+'件を反映しました');
+}
+
 /* ══ render: 今日 ═════════════════════════════ */
 function viewToday(){
   const q=queue();
@@ -990,7 +1037,7 @@ function closeDrawer(){ document.getElementById('drawer').classList.remove('on')
 document.getElementById('scrim').onclick=closeDrawer;
 
 /* ══ render: リスト ═══════════════════════════ */
-let F={q:'',wave:'',seg:'',cat:'',blk:'',biz:'',st:'',dup:'',due:''};
+let F={q:'',wave:'',seg:'',cat:'',blk:'',biz:'',st:'',dup:'',due:'',done:''};
 function uniq(k){ return [...new Set(REC.map(r=>r[k]).filter(Boolean))]; }
 function filtered(){
   return REC.filter(r=>{
@@ -1003,6 +1050,7 @@ function filtered(){
     if(F.st&&x.st!==F.st)return false;
     if(F.dup&&!r.dup)return false;
     if(F.due){ const n=next(r); if(!n||n.kind==='hold'||n.due>TODAY)return false; }
+    if(F.done){ if(F.done!==(x.s1?'1':'0'))return false; if(F.done==='0'&&x.st==='対象外')return false; }
     if(F.q){ const q=F.q.toLowerCase();
       if(![r.name,r.rep,r.pic,r.mail,r.tel,r.pref,r.city,r.kw,r.why,r.id].join(' ').toLowerCase().includes(q))return false; }
     return true;
@@ -1019,7 +1067,7 @@ function viewList(){
     ${sel('blk',uniq('blk'),'地域')}${sel('biz',uniq('biz'),'業態')}${sel('st',STATUSES,'状況')}
     <button class="btn s ${F.due?'p':''}" onclick="F.due=F.due?'':'1';render()">期限がきたものだけ${dueCount()?' ('+dueCount()+')':''}</button>
     <button class="btn s ${F.dup?'p':''}" onclick="F.dup=F.dup?'':'1';render()">重複のみ</button>
-    <button class="btn s" onclick="F={q:'',wave:'',seg:'',cat:'',blk:'',biz:'',st:'',dup:'',due:''};render()">クリア</button>
+    <button class="btn s" onclick="F={q:'',wave:'',seg:'',cat:'',blk:'',biz:'',st:'',dup:'',due:'',done:''};render()">クリア</button>
     <span style="flex:1"></span><button class="btn s" onclick="exportCSV()">CSVで書き出す</button>
   </div>
   <div class="card" style="overflow-x:auto"><table class="t"><thead><tr>
@@ -1462,18 +1510,19 @@ render();
   const filterIcon='<svg viewBox="0 0 24 24"><path d="M4 7h16M7 12h10M10 17h4"/></svg>';
   const initials=s=>(s||'M').replace(/[\s・]/g,'').slice(0,1);
   const statusClass=x=>x==='返信あり'?'hot':(!CLOSED.includes(x)&&x!=='未着手'?'live':'');
-  window.quickList=function(mode){F.due='';F.st='';F.q=''; if(mode==='due')F.due='1'; if(mode==='reply')F.st='返信あり'; if(mode==='meet')F.st='面談打診中'; window.__listMode=mode; render();};
+  window.quickList=function(mode){F.due='';F.st='';F.q='';F.done=''; if(mode==='due')F.due='1'; if(mode==='reply')F.st='返信あり'; if(mode==='meet')F.st='面談打診中'; if(mode==='done')F.done='1'; if(mode==='todo')F.done='0'; window.__listMode=mode; render();};
 
   viewList=function(){
     const rows=filtered(),due=dueCount(),replies=REC.filter(r=>st(r.id).st==='返信あり').length,meeting=REC.filter(r=>['面談打診中','面談実施','見積提出'].includes(st(r.id).st)).length;
+    const doneN=REC.filter(r=>st(r.id).s1).length,todoN=REC.filter(r=>!st(r.id).s1&&st(r.id).st!=='対象外').length;
     const mode=window.__listMode||'all';
     const sel=(k,arr,lbl)=>`<select aria-label="${lbl}" onchange="F.${k}=this.value;window.__listMode='custom';render()"><option value="">${lbl}</option>${arr.map(v=>`<option${F[k]===String(v)?' selected':''}>${esc(v)}</option>`).join('')}</select>`;
     let h=`<div class="page-intro"><div class="copy"><div class="eyebrow">DIRECTORY</div><h2>探すより、見つかる名簿。</h2><p>検索・絞り込み・次のアクションまで、同じ流れの中で完結します。</p></div><div class="meta">${rows.length} / ${REC.length} 件を表示</div></div>`;
     h+=`<div class="directory-hero"><div class="search-shell">${searchIcon}<input placeholder="施設名・医師名・製品名を検索" value="${esc(F.q)}" oninput="F.q=this.value;window.__listMode='custom';render()"><span class="key">⌘ K</span></div><button class="icon-action" title="絞り込み">${filterIcon}</button></div>`;
-    h+=`<div class="smart-strip"><button class="smart-chip ${mode==='all'?'on':''}" onclick="quickList('all')">すべて<span class="count">${REC.length}</span></button><button class="smart-chip ${mode==='due'?'on':''}" onclick="quickList('due')">今日やる<span class="count">${due}</span></button><button class="smart-chip ${mode==='reply'?'on':''}" onclick="quickList('reply')">返信あり<span class="count">${replies}</span></button><button class="smart-chip ${mode==='meet'?'on':''}" onclick="quickList('meet')">商談中<span class="count">${meeting}</span></button></div>`;
-    h+=`<div class="advanced-filters">${sel('wave',[1,2,3],'波')}${sel('seg',uniq('seg'),'セグメント')}${sel('cat',uniq('cat'),'カテゴリ')}${sel('blk',uniq('blk'),'地域')}${sel('biz',uniq('biz'),'業態')}${sel('st',STATUSES,'状況')}<button class="btn s" onclick="F={q:'',wave:'',seg:'',cat:'',blk:'',biz:'',st:'',dup:'',due:''};window.__listMode='all';render()">リセット</button></div>`;
-    h+=`<div class="directory-head"><b>${mode==='due'?'今日やる相手':mode==='reply'?'返信が来ている相手':mode==='meet'?'商談を進める相手':'すべての営業先'}</b><span>クリックで詳細を開く</span></div><div class="contact-list">`;
-    rows.slice(0,400).forEach(r=>{const x=st(r.id),n=next(r),late=n&&n.due<TODAY;h+=`<div class="contact-row" onclick="openDrawer('${r.id}')"><div class="contact-person"><div class="contact-avatar">${esc(initials(r.name))}</div><div class="contact-text"><div class="contact-name">${esc(r.name)}${r.dup?' <span class="chip r">重</span>':''}</div><div class="contact-sub">${esc(r.rep||r.pic||'担当者未設定')} · ${esc(r.pref)} ${esc(r.city||'')}</div></div></div><div class="contact-meta"><strong>${esc(r.cat||'未特定')}</strong><span>${esc(r.seg||'')}</span></div><div class="contact-status"><i class="status-dot ${late?'hot':statusClass(x.st)}"></i><span>${late?'期限超過 · '+n.act:x.st}</span></div><button class="next-pill" onclick="event.stopPropagation();openDrawer('${r.id}')">${n?esc(n.act):'詳細を見る'} ›</button></div>`});
+    h+=`<div class="smart-strip"><button class="smart-chip ${mode==='all'?'on':''}" onclick="quickList('all')">すべて<span class="count">${REC.length}</span></button><button class="smart-chip ${mode==='due'?'on':''}" onclick="quickList('due')">今日やる<span class="count">${due}</span></button><button class="smart-chip ${mode==='reply'?'on':''}" onclick="quickList('reply')">返信あり<span class="count">${replies}</span></button><button class="smart-chip ${mode==='meet'?'on':''}" onclick="quickList('meet')">商談中<span class="count">${meeting}</span></button><button class="smart-chip ${mode==='done'?'on':''}" onclick="quickList('done')">対応済み<span class="count">${doneN}</span></button><button class="smart-chip ${mode==='todo'?'on':''}" onclick="quickList('todo')">未対応<span class="count">${todoN}</span></button></div>`;
+    h+=`<div class="advanced-filters">${sel('wave',[1,2,3],'波')}${sel('seg',uniq('seg'),'セグメント')}${sel('cat',uniq('cat'),'カテゴリ')}${sel('blk',uniq('blk'),'地域')}${sel('biz',uniq('biz'),'業態')}${sel('st',STATUSES,'状況')}<button class="btn s" onclick="F={q:'',wave:'',seg:'',cat:'',blk:'',biz:'',st:'',dup:'',due:'',done:''};window.__listMode='all';render()">リセット</button></div>`;
+    h+=`<div class="directory-head"><b>${mode==='due'?'今日やる相手':mode==='reply'?'返信が来ている相手':mode==='meet'?'商談を進める相手':mode==='done'?'すでにメールした相手':mode==='todo'?'まだ何もしていない相手':'すべての営業先'}</b><span>クリックで詳細を開く</span></div><div class="contact-list">`;
+    rows.slice(0,400).forEach(r=>{const x=st(r.id),n=next(r),late=n&&n.due<TODAY;h+=`<div class="contact-row" onclick="openDrawer('${r.id}')"><div class="contact-person"><div class="contact-avatar">${esc(initials(r.name))}</div><div class="contact-text"><div class="contact-name">${esc(r.name)}${r.dup?' <span class="chip r">重</span>':''}</div><div class="contact-sub">${esc(r.rep||r.pic||'担当者未設定')} · ${esc(r.pref)} ${esc(r.city||'')}${x.s1?' · 送信 '+jp(x.s1):''}</div></div></div><div class="contact-meta"><strong>${esc(r.cat||'未特定')}</strong><span>${esc(r.seg||'')}</span></div><div class="contact-status"><i class="status-dot ${late?'hot':statusClass(x.st)}"></i><span>${late?'期限超過 · '+n.act:x.st}</span></div><button class="next-pill" onclick="event.stopPropagation();openDrawer('${r.id}')">${n?esc(n.act):'詳細を見る'} ›</button></div>`});
     h+=`</div>${rows.length>400?'<div class="tiny muted" style="margin-top:10px">先頭400件を表示しています。</div>':''}`;
     document.getElementById('v-list').innerHTML=h;
   };
@@ -1519,6 +1568,16 @@ render();
     let h=`<div class="page-intro"><div class="copy"><div class="eyebrow">ROADMAP</div><h2>12週間を、迷わない設計図に。</h2><p>設定は裏側へ。普段は「今どこか」「次に何をするか」だけ見えれば十分です。</p></div><div class="meta">Week ${wn} / 12</div></div>`;
     h+=`<div class="plan-command"><div class="plan-focus"><div class="k">CURRENT FOCUS · WAVE ${currentWave}</div><div><h3>${currentWave===1?'優先度の高い相手から、返信が取れる型を見つける。':currentWave===2?'製品名指しの層を、カテゴリ単位で攻略する。':'無回答層を仕分けて、次の母集団を作る。'}</h3><p>迷ったら、今の波で決めた目的に戻ります。</p></div></div><div class="plan-mini"><div><div class="label">12週間の進捗</div><div class="date">${overall}%</div></div><div class="progress"><i style="width:${overall}%"></i></div><div style="display:flex;justify-content:space-between;margin-top:9px;font-size:11px;color:#999"><span>${done}件着手</span><span>${total}件対象</span></div></div></div>`;
     h+=`<details class="section-card"><summary>基本設定</summary><div class="inside"><div class="settings-grid"><div class="setting-tile"><label>開始日</label><input type="date" value="${S.start}" onchange="S.start=this.value;touch();render()"></div><div class="setting-tile"><label>1日の送信上限</label><input type="number" min="1" max="200" value="${S.cap}" onchange="S.cap=+this.value||25;touch();render()"></div><div class="setting-tile"><label>会社名</label><input value="${esc(S.company)}" onchange="S.company=this.value;touch();render()"></div><div class="setting-tile"><label>差出人</label><input value="${esc(S.sender)}" onchange="S.sender=this.value;touch();render()"></div><div class="setting-tile"><label>役職</label><input value="${esc(S.title)}" onchange="S.title=this.value;touch();render()"></div></div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px"><button class="btn s" onclick="exportJSON()">JSONを書き出す</button><button class="btn s" onclick="exportCSV()">CSVを書き出す</button><button class="btn s" onclick="pull(false).then(()=>toast('最新を取り込みました'))">同期する</button><button class="btn s" onclick="document.getElementById('seed').click()">名簿を取り込む（初回のみ）</button><input type="file" id="seed" accept=".json" style="display:none" onchange="seedLeads(this)"><button class="btn s" onclick="signOut()">ログアウト</button></div></div></details>`;
+    h+=`<details class="section-card"><summary>送信済みを一括反映</summary><div class="inside">
+      <div class="tiny muted" style="margin-bottom:10px">メールの送信済みフォルダを開いて、宛先アドレスを1行ずつ貼り付けてください。施設名や会員IDでも照合します。「田中 &lt;xxx@yyy.jp&gt;」の形式のままでも読み取れます。<br>状況ごとに分けて、何回かに分けて貼るのがいちばん確実です。</div>
+      <textarea id="bulkText" placeholder="doctor@example.jp&#10;〇〇クリニック&#10;10127" style="width:100%;min-height:150px;border:1px solid #e6e6e9;border-radius:15px;padding:13px;font:inherit;font-size:13px;line-height:1.7;resize:vertical;outline:none"></textarea>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px">
+        <label class="tiny muted">この人たちの状況<select id="bulkStatus" class="btn s" style="margin-left:6px">${['1通目送信','2通目送信','3通目送信','返信あり','電話済','面談打診中','面談実施','見積提出','受注','不要連絡'].map(v=>`<option>${v}</option>`).join('')}</select></label>
+        <label class="tiny muted">その日付<input type="date" id="bulkDate" value="${TODAY}" class="btn s" style="margin-left:6px"></label>
+        <button class="btn s p" onclick="bulkApply()">反映する</button>
+      </div>
+      <div id="bulkResult" class="tiny" style="margin-top:10px"></div>
+    </div></details>`;
     h+=`<div class="section-head" style="margin-top:22px"><div><span>WAVES</span><h3>3つの波</h3></div><span>今は第${currentWave}波</span></div><div class="wave-timeline">`;
     const waves=[[1,'優先度1','紹介・品質重視・乗り換え・開業'],[2,'製品名指し','カテゴリごとに攻略'],[3,'無回答','反応を見て仕分け']];
     waves.forEach(([w,t,sb])=>{const n=REC.filter(r=>r.wave===w&&st(r.id).st!=='対象外').length,d=REC.filter(r=>r.wave===w&&st(r.id).s1).length,p=n?Math.round(d/n*100):0;h+=`<div class="wave-panel ${w===currentWave?'now':''}"><div class="w">WAVE ${w}</div><h4>${t}</h4><div class="dates">${jp(waveStart(w))} – ${jp(waveEnd(w))} · ${sb}</div><div class="wbar"><i style="width:${p}%"></i></div><div class="foot"><span>${d}/${n}件</span><b>${p}%</b></div><div class="note">${w===1?'返信が取れる型を探す。返信が来たら当日中に電話。':w===2?'価格表が揃ったカテゴリから順番に送る。':'カテゴリを1つ答えてもらえれば成功。'}</div></div>`});
