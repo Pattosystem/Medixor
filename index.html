@@ -646,7 +646,7 @@ function setSaved(t,bad){
   const el=document.getElementById('saved'); if(!el)return;
   el.textContent=t; el.style.color=bad?'var(--hot)':'var(--ink3)';
 }
-function logIt(id,kind,note){ st(id).log.push({d:TODAY,k:kind,n:note||''}); }
+function logIt(id,kind,note){ st(id).log.push({d:TODAY,k:kind,n:note||'',t:new Date().toTimeString().slice(0,5)}); }
 
 /* ══ engine ═══════════════════════════════════ */
 function waveStart(w){ return addD(S.start, w===1?0 : w===2?21 : w===3?56 : 0); }
@@ -1263,44 +1263,215 @@ function dayStats(d){
   REC.forEach(r=>st(r.id).log.forEach(l=>{ if(l.d!==d)return; if(l.k[0]==='m')m++; else if(l.k==='call')c++; }));
   return {m,c};
 }
-function pickBlock(key){
-  const cur=wkPlan(WB)[key];
+/* 記録した時刻から、午前・午後・夕方のどの枠かを決める */
+function slotOf(t){ return !t?'':(t<'12:00'?'am':(t<'17:00'?'pm':'ev')); }
+function blockStats(d,slot){
+  let m=0,c=0;
+  REC.forEach(r=>st(r.id).log.forEach(l=>{ if(l.d!==d||slotOf(l.t)!==slot)return; if(l.k[0]==='m')m++; else if(l.k==='call')c++; }));
+  return {m,c};
+}
+/* 時刻のない古い記録。枠には振り分けられないので日の合計にだけ入る */
+function untimed(d){
+  let n=0;
+  REC.forEach(r=>st(r.id).log.forEach(l=>{ if(l.d===d&&!l.t&&(l.k[0]==='m'||l.k==='call'))n++; }));
+  return n;
+}
+function wkDone(mon){ return (S.weeks[mon]&&S.weeks[mon].done)||{}; }
+function wkGoal(mon){ return (S.weeks[mon]&&S.weeks[mon].goal)||{}; }
+function wkNote(mon){ return (S.weeks[mon]&&S.weeks[mon].note)||{}; }
+function wkWeek(){ return S.weeks[WB]=S.weeks[WB]||{p:'',d:'',c:'',a:''}; }
+function setGoal(key,v){
+  const w=wkWeek(); w.goal=w.goal||{};
+  const n=parseInt(v,10);
+  if(n>0)w.goal[key]=n; else delete w.goal[key];
+  touch(); render();
+}
+function setBlockNote(key,v){
+  const w=wkWeek(); w.note=w.note||{};
+  if(v.trim())w.note[key]=v; else delete w.note[key];
+  touch();
+}
+/* その枠に残っている記録を、時刻順に並べて返す */
+function blockLogs(d,slot){
+  const out=[];
+  REC.forEach(r=>st(r.id).log.forEach((l,i)=>{ if(l.d===d&&slotOf(l.t)===slot) out.push({rec:r,l:l,i:i}); }));
+  out.sort((a,b)=>String(a.l.t||'').localeCompare(String(b.l.t||'')));
+  return out;
+}
+const LOGNAME={m1:'1通目 送信',m2:'2通目 送信',m3:'3通目 送信',reply:'返信あり',call:'電話',hold:'保留',st:'状況変更'};
+/* あとから記録するとき、その枠に入る時刻を決める */
+function blockTime(slot){
+  const now=new Date().toTimeString().slice(0,5);
+  if(slotOf(now)===slot) return now;
+  return slot==='am'?'10:00':(slot==='pm'?'15:00':'18:00');
+}
+/* 枠から直接、やった相手を記録する。先に決めておく必要はない */
+function quickLog(key,id,quiet){
+  const idx=+key.split('-')[0]-1, slot=key.split('-')[1], d=addD(WB,idx);
+  const k=wkPlan(WB)[key]||'', x=st(id), t=blockTime(slot);
+  const el=quiet?null:document.getElementById('blkMemo');
+  const memo=el?el.value.trim():'';
+  const put=(kind,note)=>x.log.push({d:d,k:kind,n:note||'',t:t});
+  if(k==='架電'){
+    if(!x.s1)x.s1=d; x.call=d;
+    if(!CLOSED.includes(x.st))x.st='電話済';
+    put('call',memo);
+  }else if(k==='送信'){
+    if(!x.s1){ x.s1=d; x.st='1通目送信'; put('m1',memo); }
+    else if(!x.s2){ x.s2=d; x.st='2通目送信'; put('m2',memo); }
+    else { x.s3=d; x.st='3通目送信'; put('m3',memo); }
+  }else{
+    put('st',k+(memo?'／'+memo:''));
+  }
+  x.last=d; x.snooze='';
+  if(memo) x.memo=(x.memo?x.memo+'\n':'')+jp(d)+' '+memo;
+  touch(id);
+  if(quiet)return;
+  if(el)el.value='';
+  const q=document.getElementById('blkQ'); if(q)q.value='';
+  reopenBlock(key,true);
+  toast(BYID[id].name+' を記録しました');
+}
+let BLKSEL=new Set(), BLKBROWSE=false;
+function blkBrowse(key,on){ BLKBROWSE=on; BLKSEL=new Set(); reopenBlock(key); }
+function toggleSel(key,id){
+  if(BLKSEL.has(id))BLKSEL.delete(id); else BLKSEL.add(id);
+  blkSearch(key);
+  const b=document.getElementById('blkCommit');
+  if(b){ b.textContent='選んだ '+BLKSEL.size+' 件を記録する'; b.disabled=!BLKSEL.size; }
+}
+function blkCommit(key){
+  if(!BLKSEL.size)return;
+  const ids=[...BLKSEL];
+  ids.forEach(id=>quickLog(key,id,true));
+  BLKSEL=new Set();
+  reopenBlock(key);
+  toast(ids.length+'件を記録しました');
+}
+/* 記録した1件ごとの内容。相手の履歴にもそのまま残る */
+function setLogNote(id,i,v){ const x=st(id); if(x.log[i]){ x.log[i].n=v; touch(id); } }
+function blkSearch(key){
+  const el=document.getElementById('blkQ'), box=document.getElementById('blkHits');
+  if(!el||!box)return;
+  const q=el.value.trim().toLowerCase();
+  const match=r=>!q||[r.name,r.rep,r.pic,r.tel,r.mail,r.pref,r.city,r.id].join(' ').toLowerCase().includes(q);
+  if(BLKBROWSE){
+    const list=REC.filter(match).slice(0,400);
+    box.innerHTML = list.length
+      ? list.map(r=>'<div class="blk-row" onclick="toggleSel(\''+key+'\',\''+r.id+'\')">'
+          +'<span class="blk-ck'+(BLKSEL.has(r.id)?' on':'')+'">✓</span>'
+          +'<span style="flex:1;min-width:0"><b style="font-size:13px">'+esc(r.name)+'</b>'
+          +'<div class="tiny muted">'+esc(r.pref)+esc(r.city||'')+(r.tel?'　'+esc(r.tel):'')+'　'+esc(st(r.id).st)+'</div></span></div>').join('')
+      : '<div class="tiny muted" style="padding:10px 12px">該当がありません。</div>';
+    return;
+  }
+  if(!q){ box.innerHTML='<div class="tiny muted" style="padding:10px 12px">名前の一部でも探せます。上の「名簿から選ぶ」でも構いません。</div>'; return; }
+  const hits=REC.filter(match).slice(0,8);
+  box.innerHTML = hits.length
+    ? hits.map(r=>'<div class="blk-row" onclick="quickLog(\''+key+'\',\''+r.id+'\')">'
+        +'<span style="flex:1;min-width:0"><b style="font-size:13px">'+esc(r.name)+'</b>'
+        +'<div class="tiny muted">'+esc(r.pref)+esc(r.city||'')+(r.tel?'　'+esc(r.tel):'')+'　'+esc(st(r.id).st)+'</div></span>'
+        +'<span class="tiny" style="color:var(--pri-t);font-weight:700">記録する</span></div>').join('')
+    : '<div class="tiny muted" style="padding:10px 12px">見つかりません。別の言葉で探してください。</div>';
+}
+function toggleDone(key){
+  const w=S.weeks[WB]=S.weeks[WB]||{p:'',d:'',c:'',a:''};
+  w.done=w.done||{};
+  if(w.done[key])delete w.done[key]; else w.done[key]=1;
+  touch(); render();
+}
+function closeBlock(){ const e=document.getElementById('blkModal'); if(e)e.remove(); }
+function reopenBlock(key,focus){ closeBlock(); openBlock(key,focus); }
+function openBlock(key,focusSearch){
+  closeBlock();
+  const idx=+key.split('-')[0]-1, slot=key.split('-')[1], d=addD(WB,idx);
+  const k=wkPlan(WB)[key]||'', gl=wkGoal(WB), dn=wkDone(WB), nt=wkNote(WB);
+  const si=WK_SLOTS.filter(x=>x[0]===slot)[0];
+  const b=blockStats(d,slot), logs=blockLogs(d,slot);
+  const goal=gl[key]||(k==='送信'?S.cap:0);
   const wrap=document.createElement('div');
-  wrap.style.cssText='position:fixed;inset:0;z-index:120;background:rgba(0,0,0,.35);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;padding:20px';
+  wrap.id='blkModal';
+  wrap.style.cssText='position:fixed;inset:0;z-index:120;background:rgba(0,0,0,.35);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;padding:18px';
   const box=document.createElement('div');
-  box.className='card pad'; box.style.cssText='width:min(380px,100%)';
-  box.innerHTML='<div class="eyebrow">この枠で何をしますか？</div>';
-  const close=()=>wrap.remove();
-  Object.keys(WK_KINDS).forEach(k=>{
-    const b=document.createElement('button');
-    b.className='btn'+(k===cur?' p':'');
-    b.style.cssText='width:100%;text-align:left;margin-bottom:8px';
-    b.textContent=k;
-    b.onclick=()=>{ close(); setBlock(key,k); };
-    box.appendChild(b);
-  });
-  const e=document.createElement('button');
-  e.className='btn s'; e.style.cssText='margin-right:8px'; e.textContent='空きにする';
-  e.onclick=()=>{ close(); setBlock(key,''); };
-  box.appendChild(e);
-  const c=document.createElement('button');
-  c.className='btn s'; c.textContent='キャンセル'; c.onclick=close;
-  box.appendChild(c);
+  box.className='card pad'; box.style.cssText='width:min(540px,100%);max-height:86vh;overflow:auto';
+  let h='<div class="eyebrow">'+WK_DOW[idx]+'曜 '+jp(d)+'　'+si[1]+'　'+si[2]+'</div>';
+  h+='<div class="tiny muted" style="margin-bottom:8px">この枠でやること</div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">';
+  h+=Object.keys(WK_KINDS).map(v=>'<button class="btn s'+(v===k?' p':'')+'" onclick="setBlock(\''+key+'\',\''+v+'\');reopenBlock(\''+key+'\')">'+v+'</button>').join('');
+  h+='<button class="btn s" onclick="setBlock(\''+key+'\',\'\');closeBlock()">空きにする</button></div>';
+  if(k){
+    const act = k==='送信'?b.m : (k==='架電'?b.c : null);
+    const unit = k==='送信'?'通':'件';
+    h+='<div class="quote" style="margin-bottom:12px"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">'
+      +'<label class="tiny muted">目標 <input type="number" min="0" max="999" value="'+(gl[key]||'')+'" placeholder="'+(k==='送信'?S.cap:'—')+'" onchange="setGoal(\''+key+'\',this.value);reopenBlock(\''+key+'\')" style="width:78px;height:34px;border:1px solid #e6e6e9;border-radius:10px;padding:0 8px;margin:0 4px;background:#fff"> '+unit+'</label>'
+      +'<span style="flex:1"></span>'
+      +(act===null
+         ? '<span class="tiny muted">この作業は自動では数えられません。下の ✓ と記録で残してください。</span>'
+         : '<span style="font-size:20px;font-weight:760;letter-spacing:-.03em">'+act+(goal?' <span style="font-size:13px;color:#9a9aa2;font-weight:650">/ '+goal+' '+unit+'</span>':' <span style="font-size:13px;color:#9a9aa2;font-weight:650">'+unit+'</span>')+'</span>')
+      +'</div>'
+      +(act!==null&&goal?'<div class="mini-progress" style="margin-top:10px"><i style="width:'+Math.min(100,Math.round(act/goal*100))+'%"></i></div>'
+        +'<div class="tiny muted" style="margin-top:6px">'+(act>=goal?'達成しました。':'あと '+(goal-act)+' '+unit+'。')+'</div>':'')
+      +'</div>';
+  }
+  if(k&&k!=='資料作成'){
+    const verb = k==='架電'?'架電した先':(k==='送信'?'送った先':k+'した先');
+    h+='<div class="eyebrow" style="margin-top:4px">'+verb+'を記録する</div>'
+      +'<div class="tiny muted" style="margin-bottom:8px">先に決めておく必要はありません。やったあとに、名簿から選ぶだけです。</div>'
+      +'<div style="display:flex;gap:6px;margin-bottom:8px">'
+      +'<button class="btn s'+(BLKBROWSE?'':' p')+'" onclick="blkBrowse(\''+key+'\',false)">名前で探す</button>'
+      +'<button class="btn s'+(BLKBROWSE?' p':'')+'" onclick="blkBrowse(\''+key+'\',true)">名簿から選ぶ（'+REC.length+'件）</button></div>'
+      +'<input id="blkQ" placeholder="'+(BLKBROWSE?'一覧を絞り込む（空欄なら全件）':'施設名・医師名・電話番号で探す')+'" oninput="blkSearch(\''+key+'\')" '
+      +'style="width:100%;height:42px;border:1px solid #e6e6e9;border-radius:13px;padding:0 13px;background:#fff;outline:none;font-size:14px">'
+      +(BLKBROWSE?'':'<input id="blkMemo" placeholder="ひとこと残す（任意）：不在、価格表を送る約束 など" '
+        +'style="width:100%;height:38px;border:1px solid #ececf1;border-radius:12px;padding:0 12px;margin-top:7px;background:#fafafa;outline:none;font-size:13px">')
+      +'<div id="blkHits" style="border:1px solid rgba(0,0,0,.055);border-radius:14px;overflow:auto;max-height:'+(BLKBROWSE?'320px':'none')+';margin:8px 0 '+(BLKBROWSE?'8px':'16px')+';background:#fff"></div>'
+      +(BLKBROWSE?'<button id="blkCommit" class="btn p" disabled style="width:100%;margin-bottom:16px" onclick="blkCommit(\''+key+'\')">選んだ 0 件を記録する</button>':'');
+  }
+  h+='<div class="eyebrow" style="margin-top:4px">この枠でやったこと（'+logs.length+'）</div>';
+  h+= logs.length
+    ? '<div style="border:1px solid rgba(0,0,0,.055);border-radius:14px;overflow:hidden;margin-bottom:14px">'
+      + logs.map(o=>
+          '<div class="blk-item"><div class="blk-head">'
+            +'<span class="mono tiny" style="width:44px;flex-shrink:0;color:#9a9aa2">'+esc(o.l.t||'--:--')+'</span>'
+            +'<span style="flex:1;min-width:0"><b style="font-size:13px">'+esc(o.rec.name)+'</b>'
+            +'<div class="tiny muted">'+esc(LOGNAME[o.l.k]||o.l.k)+(o.rec.tel?'　'+esc(o.rec.tel):'')+'</div></span>'
+            +'<button class="btn s" onclick="closeBlock();openDrawer(\''+o.rec.id+'\')">詳細</button></div>'
+          +'<input class="blk-note" placeholder="話した内容・次にやること" value="'+esc(o.l.n||'')+'" '
+            +'oninput="setLogNote(\''+o.rec.id+'\','+o.i+',this.value)"></div>').join('')
+      + '</div>'
+    : '<div class="tiny muted" style="margin-bottom:14px">まだ記録がありません。</div>';
+  h+='<div class="eyebrow">この枠のメモ</div>'
+    +'<textarea class="memota" placeholder="できなかった理由、次にやること、話の続きなど" oninput="setBlockNote(\''+key+'\',this.value)">'+esc(nt[key]||'')+'</textarea>'
+    +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">'
+    +'<button class="btn '+(dn[key]?'p':'')+'" onclick="toggleDone(\''+key+'\');reopenBlock(\''+key+'\')">'+(dn[key]?'✓ やった枠':'この枠をやったことにする')+'</button>'
+    +'<span style="flex:1"></span><button class="btn s" onclick="closeBlock()">閉じる</button></div>';
+  box.innerHTML=h;
   wrap.appendChild(box);
-  wrap.onclick=ev=>{ if(ev.target===wrap) close(); };
+  wrap.onclick=ev=>{ if(ev.target===wrap) closeBlock(); };
   document.body.appendChild(wrap);
+  if(k&&k!=='資料作成') blkSearch(key);
+  if(focusSearch){ const q=document.getElementById('blkQ'); if(q&&q.focus)q.focus(); }
 }
 function viewWeek(){
   const days=[...Array(7)].map((_,i)=>addD(WB,i)), pl=wkPlan(WB);
   const mailDue=queue().filter(o=>['m1','m2','m3'].includes(o.n.kind)&&o.n.due<=days[6]).length;
   const late=queue().filter(o=>o.n.due<TODAY).length;
   const wkSent=days.reduce((a,d)=>a+dayStats(d).m,0), wkCall=days.reduce((a,d)=>a+dayStats(d).c,0);
+  const dn=wkDone(WB), gl=wkGoal(WB);
   const cell=(i,slot)=>{
     const key=(i+1)+'-'+slot, k=pl[key], ev=slot==='ev'?' ev':'', we=i>4?' we':'';
-    const inner = k
-      ? '<span class="wb-b" style="background:'+WK_KINDS[k][0]+';color:'+WK_KINDS[k][1]+'">'+k+(k==='送信'?'<br><small>'+S.cap+'通まで</small>':'')+'</span>'
-      : '<span class="wb-p">＋</span>';
-    return '<div class="wb-c'+ev+we+'" onclick="pickBlock(\''+key+'\')">'+inner+'</div>';
+    if(!k) return '<div class="wb-c'+ev+we+'" onclick="openBlock(\''+key+'\')"><span class="wb-p">＋</span></div>';
+    const b=blockStats(days[i],slot), goal=gl[key]||(k==='送信'?S.cap:0);
+    let res='';
+    if(k==='送信'||k==='架電'){
+      const act=k==='送信'?b.m:b.c, unit=k==='送信'?'通':'件';
+      res='<div class="wb-r'+(goal&&act>=goal?' hit':(act?' some':''))+'">'+act+(goal?' / '+goal:'')+' '+unit+'</div>';
+    }else if(goal){
+      res='<div class="wb-r">目標 '+goal+' 件</div>';
+    }
+    const ok='<button class="wb-ok'+(dn[key]?' on':'')+'" title="この枠をやった" onclick="event.stopPropagation();toggleDone(\''+key+'\')">✓</button>';
+    return '<div class="wb-c has'+ev+we+(dn[key]?' done':'')+'" onclick="openBlock(\''+key+'\')">'
+      +'<span class="wb-b" style="background:'+WK_KINDS[k][0]+';color:'+WK_KINDS[k][1]+'">'+k+'</span>'
+      +res+ok+'</div>';
   };
   let h=`<div class="page-intro"><div class="copy"><div class="eyebrow">WEEK</div><h2>誰にやるかの前に、いつやるかを置く。</h2><p>枠を押すと作業の種類を選べます。決めた枠と、その日の実績が並びます。</p></div><div class="meta">${jp(WB)} – ${jp(days[6])}</div></div>`;
   h+=`<div class="filters" style="position:relative;top:auto;background:transparent;border:0;padding:0;backdrop-filter:none">
@@ -1320,10 +1491,28 @@ function viewWeek(){
   });
   h+=`<div class="wb-div">実績</div><div class="wb-t"><b>やった量</b><span>記録から自動</span></div>`;
   h+=days.map(d=>{ const x=dayStats(d);
-    return `<div class="wb-c res">${x.m||x.c?`<span class="tiny">送信 <b>${x.m}</b>${x.c?'<br>架電 <b>'+x.c+'</b>':''}</span>`:'<span class="tiny muted">—</span>'}</div>`;
+    const u=untimed(d);
+    return `<div class="wb-c res">${x.m||x.c?`<span class="tiny">送信 <b>${x.m}</b>${x.c?'<br>架電 <b>'+x.c+'</b>':''}${u?'<br><span class="muted">時刻なし '+u+'</span>':''}</span>`:'<span class="tiny muted">—</span>'}</div>`;
   }).join('');
   h+=`</div></div>`;
-  h+=`<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:14px">
+  const sendKeys=Object.keys(pl).filter(k=>pl[k]==='送信');
+  const callKeys=Object.keys(pl).filter(k=>pl[k]==='架電');
+  const sendBlocks=sendKeys.length, callBlocks=callKeys.length;
+  const target=sendKeys.reduce((a,k)=>a+(gl[k]||S.cap),0);
+  const callTarget=callKeys.reduce((a,k)=>a+(gl[k]||0),0);
+  const pct=target?Math.round(wkSent/target*100):0;
+  h+=`<div class="wb-sum">
+    <div><div class="k">送信の予定と実績</div><div class="v">${wkSent} <span>/ ${target} 通</span></div>
+      <div class="mini-progress" style="margin-top:10px"><i style="width:${Math.min(100,pct)}%"></i></div>
+      <div class="k" style="margin-top:7px">送信枠 ${sendBlocks} コマ　達成 ${target?pct+'%':'—'}</div></div>
+    <div><div class="k">架電の予定と実績</div><div class="v">${wkCall} <span>${callTarget?'/ '+callTarget+' 件':'件'}</span></div>
+      ${callTarget?`<div class="mini-progress" style="margin-top:10px"><i style="width:${Math.min(100,Math.round(wkCall/callTarget*100))}%"></i></div>`:''}
+      <div class="k" style="margin-top:${callTarget?'7':'10'}px">架電枠 ${callBlocks} コマ${callTarget?'　達成 '+Math.round(wkCall/callTarget*100)+'%':'　目標は枠を開いて設定'}</div></div>
+    <div><div class="k">やった枠</div><div class="v">${Object.keys(dn).length} <span>/ ${Object.keys(pl).length} コマ</span></div>
+      <div class="k" style="margin-top:10px">枠の右下の ✓ で印を付けます</div></div>
+  </div>
+  <div class="tiny muted" style="margin-top:10px">枠を押すと、目標件数の設定と、その枠で誰に何をしたかの記録が見られます。実績は記録した時刻で午前・午後・夕方に振り分けています。時刻の残っていない過去の記録は、下の「やった量」の行にだけ入ります。</div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:14px">
     <span class="tiny muted">この週の実績：送信 <b>${wkSent}</b> 通 ／ 架電 <b>${wkCall}</b> 件</span>
     <span style="flex:1"></span>
     ${Object.entries(WK_KINDS).map(([k,c])=>`<span class="wb-b" style="background:${c[0]};color:${c[1]}">${k}</span>`).join('')}
@@ -1674,7 +1863,32 @@ render();
 .wb-t{display:flex;flex-direction:column;justify-content:center;padding:6px 8px}
 .wb-t b{font-size:13px;font-weight:700}
 .wb-t span{font-size:10.5px;color:#9a9aa2}
-.wb-c{min-height:66px;border:1px dashed #e4e4ea;border-radius:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:6px;text-align:center;transition:.14s ease}
+.wb-c{min-height:66px;border:1px dashed #e4e4ea;border-radius:14px;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;padding:8px 6px;text-align:center;transition:.14s ease;position:relative}
+.wb-c.has{border-style:solid;border-color:#ececf1}
+.wb-c.done{background:#F3FBF6;border-color:#bfe3ce}
+.wb-c.done.ev{background:#F3FBF6}
+.wb-r{font-size:11.5px;font-weight:760;color:#b4b4bd;letter-spacing:-.01em}
+.wb-r.some{color:#5a5a63}
+.wb-r.hit{color:#16784A}
+.wb-ok{position:absolute;right:6px;bottom:6px;width:21px;height:21px;border-radius:50%;border:1px solid #dedee4;background:#fff;color:#cdcdd4;font-size:11px;line-height:1;display:grid;place-items:center;padding:0}
+.wb-ok:hover{border-color:#16784A;color:#16784A}
+.wb-ok.on{background:#16784A;border-color:#16784A;color:#fff}
+.blk-ck{width:20px;height:20px;flex-shrink:0;border-radius:6px;border:1.5px solid #d8d8de;background:#fff;color:transparent;font-size:12px;display:grid;place-items:center;font-weight:800}
+.blk-ck.on{background:#16784A;border-color:#16784A;color:#fff}
+.blk-item{border-bottom:1px solid #f1f1f4;padding:10px 13px 12px;background:#fff}
+.blk-item:last-child{border-bottom:0}
+.blk-head{display:flex;align-items:center;gap:10px}
+.blk-note{width:100%;margin-top:7px;height:36px;border:1px solid #ececf1;border-radius:10px;padding:0 11px;background:#fafafa;outline:none;font-size:13px}
+.blk-note:focus{background:#fff;border-color:#9893ff;box-shadow:0 0 0 3px rgba(110,91,245,.10)}
+.blk-row{display:flex;align-items:center;gap:10px;padding:11px 13px;border-bottom:1px solid #f1f1f4;cursor:pointer;background:#fff;transition:.12s ease}
+.blk-row:last-child{border-bottom:0}
+.blk-row:hover{background:#f7f7fa}
+.wb-sum{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:16px}
+.wb-sum>div{background:#fff;border:1px solid rgba(0,0,0,.055);border-radius:20px;padding:17px 19px;box-shadow:0 6px 22px rgba(0,0,0,.035)}
+.wb-sum .k{font-size:11px;color:#9a9aa2}
+.wb-sum .v{font-size:29px;font-weight:770;letter-spacing:-.045em;margin-top:4px}
+.wb-sum .v span{font-size:14px;font-weight:650;color:#9a9aa2;letter-spacing:0}
+@media(max-width:820px){.wb-sum{grid-template-columns:1fr}}
 .wb-c:hover{border-color:#b9b9c2;background:#fafafd}
 .wb-c.we{background:#fbfbfd}
 .wb-c.ev{background:#fdfaf4;border-color:#ecdfc9}
